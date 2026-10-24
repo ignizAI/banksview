@@ -1,0 +1,60 @@
+{% extends "base.html" %}{% block title %}Terms of Use | {{ BRAND }}{% endblock %}
+{% block body %}
+<article class="doc">
+<p class="lp-kicker">Version {{ TERMS_VERSION }}</p>
+<h1>Terms of Use</h1>
+<p class="sub">Please read these terms before you create an account or upload a statement. By creating an account you accept them.</p>
+
+<h2>1. What {{ BRAND }} is</h2>
+<p>{{ BRAND }} is a software platform operated by {{ COMPANY_NAME }}{% if COMPANY_ADDRESS %}, {{ COMPANY_ADDRESS }}{% endif %}. You upload a bank statement PDF and, if it has one, its password. The platform reads the file and produces an automated analysis report and an Excel workbook. {{ BRAND }} is not a bank, lender, credit bureau, credit rating agency or financial adviser. It does not take credit decisions and does not verify statements with any bank.</p>
+
+<h2>2. Who may use it</h2>
+<p>{{ BRAND }} is for DSAs, loan agents, DSA firms and small NBFCs acting in a professional capacity. You confirm that you are at least 18, that the details you give are accurate, and that you are authorised to use {{ BRAND }} for the organisation you represent. If you are an employee of a lender, you confirm that your employer permits you to upload borrower statements to an external service.</p>
+
+<h2>3. Your responsibilities</h2>
+<p>You alone are responsible for the following.</p>
+<ul>
+<li><b>Consent.</b> Before you upload a statement you must have obtained the account holder's informed consent to the statement being uploaded to {{ BRAND }} and analysed. You confirm this each time you upload. We may ask you for evidence of that consent.</li>
+<li><b>Authority.</b> You have the right to hold and upload the statement, and you will not upload a statement you obtained unlawfully.</li>
+<li><b>Lawful use.</b> You will use the report only for a lawful purpose, and you will comply with all laws that apply to you, including data protection law as it applies to the personal data you collect and share. You are responsible for your own notices to, and relationship with, the account holder.</li>
+<li><b>Checking the output.</b> The report is automated decision support. You must check it against the original statement before relying on it. Every lending, onboarding or other decision you take, and its consequences, are yours.</li>
+<li><b>Your account.</b> You will keep your password and your authenticator device secure, and you are responsible for activity under your account.</li>
+<li><b>No misuse.</b> You will not upload malicious files, attempt to access another user's data, probe or overload the service, reverse engineer it, or resell reports as a competing service.</li>
+</ul>
+
+<h2>4. How the service works and its limits</h2>
+<p>The platform reads text from PDFs and applies automated rules. It can misread a layout, misclassify a transaction or miss an item. Banks change their formats without notice, and the platform supports only the banks and layouts listed on the <a href="/banks">supported banks</a> page. Statement integrity checks raise flags for you to review. A flag is an indicator and not a finding of fraud. The absence of a flag does not mean a statement is genuine. We make no promise that a report is complete, accurate or fit for a particular purpose.</p>
+
+<h2>5. Charges and wallet</h2>
+<ul>
+<li>Each report costs {{ PRICE }} and is charged from your prepaid wallet only when a report is produced. Files that are rejected, unreadable, password-protected without the right password or not bank statements are not charged.</li>
+<li>Uploading the same file again within {{ DUP_DAYS }} days opens the earlier report without a new charge.</li>
+<li>Wallet money is bought in fixed packs: {{ MIN_TOPUP }} for one report (available once, before your first report), &#8377;250 for 5 reports, &#8377;1,000 for 20 reports and &#8377;5,000 for 100 reports. <b>Money added to the wallet is not refundable, cannot be withdrawn and cannot be transferred.</b> It can only be used to pay for reports. We will still correct a report charged in error, and a payment that was debited but not credited to your wallet.</li>
+{% if COUPONS_ENABLED %}<li>A discount coupon (for example {{ COUPON_PERCENT }}% off a top-up) is issued by {{ BRAND }} only. It lowers the amount you pay for a top-up; the wallet is credited with the full top-up amount. A coupon works once per account and has no cash value.</li>{% endif %}
+<li>Payments are processed by a third-party payment gateway; we do not store card or bank-account details.</li>
+<li>Prices may change for future reports. Taxes are added where the law requires them.</li>
+</ul>
+
+<h2>6. Limits on our liability</h2>
+<p>To the fullest extent the law allows, {{ COMPANY_NAME }} is not liable for any indirect, incidental, special or consequential loss, or for loss of profit, business, goodwill or data, or for any loan loss, default, fraud loss or other loss arising from a decision you take using a report. Our total liability to you for all claims arising from the service is limited to the fees you paid in the {{ CAP_MONTHS }} months before the event giving rise to the claim. Nothing in these terms excludes or limits liability that cannot be excluded or limited by law, including liability for fraud or wilful misconduct.</p>
+<p>The service is provided on an "as is" and "as available" basis. We do not guarantee that it will be uninterrupted or error free.</p>
+
+<h2>7. Indemnity</h2>
+<p>You will indemnify and hold harmless {{ COMPANY_NAME }}, its directors and employees against claims, losses, penalties and costs (including reasonable legal fees) brought by an account holder, another third party or a regulator that arise from your upload of a statement without the account holder's consent or without authority, your breach of these terms, or your unlawful use of a report.</p>
+
+<h2>8. Data protection</h2>
+<p>How we handle personal data is set out in the <a href="/privacy">Privacy Policy</a>. In short: the uploaded PDF is processed in memory and not stored, the PDF password is never stored, and reports are deleted after {{ RETAIN_DAYS }} days. We keep a record of what you accepted, when, and from which network address.</p>
+
+<h2>9. Suspension and ending</h2>
+<p>We may suspend or close an account that breaches these terms, that we reasonably suspect of misuse, or where the law requires it. You may stop using {{ BRAND }} at any time. Unused wallet balance is not refunded (see section 5).</p>
+
+<h2>10. Changes</h2>
+<p>We may update these terms. When we do, we change the version number and ask you to accept the new version before you continue.</p>
+
+<h2>11. Governing law</h2>
+<p>These terms are governed by the laws of India. The courts at {{ JURISDICTION }} have exclusive jurisdiction, subject to any right you have under law that cannot be excluded.</p>
+
+<h2>12. Contact</h2>
+<p>Questions or complaints: see <a href="/grievance">Grievance</a>.</p>
+</article>
+{% endblock %}

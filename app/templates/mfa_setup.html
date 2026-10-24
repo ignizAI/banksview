@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Set up two-factor sign-in | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="auth card" style="max-width:520px">
+  <h1>Set up two-factor sign-in</h1>
+  <p class="sub">This account can open borrower financial data, so a second step is required at every sign-in.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  <ol class="muted" style="padding-left:20px">
+    <li>Install an authenticator app (Google Authenticator, Microsoft Authenticator, Authy or similar).</li>
+    <li>Add a new account and choose <b>Enter a setup key</b>. Use the key below, with the type set to time-based.</li>
+    <li>Type the 6-digit code the app shows.</li>
+  </ol>
+  <div class="card" style="background:var(--peach);text-align:center;margin:14px 0">
+    <small class="muted">Setup key</small><div style="font:700 20px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.04em;word-break:break-all">{{ grouped }}</div>
+    <small class="muted">Account: {{ user.email }}</small>
+  </div>
+  <form method="post" action="/mfa/setup">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label>6-digit code</label><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></div>
+    <button class="btn" style="width:100%">Turn on two-factor sign-in</button>
+  </form>
+</div>
+{% endblock %}

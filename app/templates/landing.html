@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}{{ BRAND }} | Bank statement analysis for lending{% endblock %}
+{% block bodyclass %}lp{% endblock %}
+{% block navlinks %}<a class="navlink" href="#product">Product</a><a class="navlink" href="#how">How it works</a><a class="navlink" href="#banks">Banks</a><a class="navlink" href="#pricing">Pricing</a><a class="navlink" href="#faq">FAQ</a>{% endblock %}
+{% block body %}
+
+<section class="lp-hero">
+  <div class="lp-hero-copy">
+    <p class="lp-eyebrow">Statements in. Decisions out.</p>
+    <h1>Bank statement analysis for the <mark>last mile of lending.</mark></h1>
+    <p class="lp-lead">{{ BRAND }} turns a password-locked bank statement PDF into a {{ METRIC_COUNT }}-metric Excel report, a risk score and a dashboard, in about a minute. Built for DSAs, loan agents and small NBFCs.</p>
+    <div class="lp-cta">
+      <a class="btn big" href="/signup">Get started</a>
+      <a class="btn big ghost" href="#video">Watch the video</a>
+    </div>
+    <p class="lp-micro">Operating in India · {{ BANK_COUNT }} banks · {{ PRICE }} per finished report · nothing charged if the upload fails</p>
+    <blockquote class="y-quote">We read the statement and show our working. You take the lending decision.</blockquote>
+  </div>
+
+  <div class="y-hero-vis">
+    <div class="lp-mock" aria-label="Illustrative sample of a BanksView report">
+      <div class="lp-mock-top"><span class="lp-dot"></span><span class="lp-dot"></span><span class="lp-dot"></span><small>Outcomes <span class="y-badge">Sample</span></small></div>
+      <div class="lp-mock-body">
+        <div class="y-tiles3">
+          <div><small>Metrics</small><strong data-count="{{ METRIC_COUNT }}">{{ METRIC_COUNT }}</strong></div>
+          <div><small>Checks first</small><strong data-count="13">13</strong></div>
+          <div><small>Per report</small><strong>{{ PRICE }}</strong></div>
+        </div>
+        <div class="lp-bars" aria-hidden="true">
+          <i style="--h:52%"></i><i style="--h:64%"></i><i style="--h:58%"></i><i style="--h:78%"></i><i style="--h:70%"></i><i style="--h:92%"></i>
+        </div>
+        <p class="lp-ok">Totals match the bank's own summary · illustrative figures</p>
+      </div>
+    </div>
+    <div class="y-stack" aria-label="How a statement flows through the platform">
+      <div class="y-layer"><b>Input</b><span class="y-chipx">PDF</span><span class="y-chipx">Password</span><span class="y-chipx">Account holder's consent</span><em>In memory, never stored</em></div>
+      <div class="y-layer"><b>Engine</b><span class="y-chipx">Validate</span><span class="y-chipx">Read</span><span class="y-chipx">Reconcile</span><span class="y-chipx">Analyse</span><em>{{ BANK_COUNT }} banks</em></div>
+      <div class="y-layer"><b>Output</b><span class="y-chipx on">Excel · 8 sheets</span><span class="y-chipx on">Dashboard</span><span class="y-chipx on">Risk score</span><em>Kept {{ RETAIN_DAYS }} days</em></div>
+    </div>
+  </div>
+</section>
+
+<section class="lp-sec rv" id="video">
+  <p class="lp-kicker">See it in action</p>
+  <h2 id="tw" class="y-tw">How {{ BRAND }} helps your credit desk</h2>
+  <div class="y-video" id="vwrap">
+    <video id="intro" preload="auto" playsinline muted poster="/static/explainer-poster.jpg">
+      <source src="/static/banksview-explainer.mp4" type="video/mp4">
+      Your browser cannot play this video. It shows a statement going through upload, checks, analysis and report in under a minute.
+    </video>
+    <button type="button" class="y-bigplay" id="bigplay" aria-label="Play video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+    <div class="y-bar" id="vbar">
+      <button type="button" class="y-ctl" id="pp" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-play" d="M8 5.5v13l11-6.5z"/><g class="i-pause"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></g></svg></button>
+      <div class="y-prog" id="prog" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0"><i id="progf"></i></div>
+      <span class="y-time" id="vtime">0:00 / 0:46</span>
+      <button type="button" class="y-ctl y-spk" id="snd" aria-pressed="false" aria-label="Turn sound on" title="Sound">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="sp" d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><g class="wv"><path d="M15.5 9a4.2 4.2 0 010 6"/><path d="M18 6.5a8 8 0 010 11"/></g><g class="mx"><path d="M16 9.5l5 5M21 9.5l-5 5"/></g></svg>
+        <span class="y-hint" id="sndt">Unmute</span>
+      </button>
+      <button type="button" class="y-ctl" id="fs" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<section class="lp-sec rv" id="banks">
+  <p class="lp-kicker">Coverage</p>
+  <h2>Reads statements from {{ BANK_COUNT }} Indian banks</h2>
+  <p class="lp-note" style="margin:6px 0 0">Each bank is tested against {{ BANKS|map(attribute='layouts')|map('length')|min }} or more statement layouts. <a href="/banks">See how coverage is tested</a></p>
+  <div class="y-marquee" aria-hidden="true"><div class="y-track">{% for k in range(2) %}{% for b in BANKS[:8] %}<span>{{ b.name }}</span>{% endfor %}{% endfor %}</div></div>
+  <div class="y-marquee" aria-hidden="true"><div class="y-track rev">{% for k in range(2) %}{% for b in BANKS[8:] %}<span>{{ b.name }}</span>{% endfor %}{% endfor %}</div></div>
+  <ul class="sr-only">{% for b in BANKS %}<li>{{ b.name }}</li>{% endfor %}</ul>
+</section>
+
+<section class="lp-sec rv" id="product">
+  <p class="lp-kicker">The product</p>
+  <h2 id="fh" class="y-fh"><span class="a">Many checks.</span> <span class="b">One statement report.</span></h2>
+  <p class="lp-note" style="margin:6px 0 0">Each module answers one question a credit officer asks, from the first page of the PDF to the final decision.</p>
+  <div class="y-tabs" role="tablist">
+    <button role="tab" class="on" data-t="p1">Validation</button><button role="tab" data-t="p2">Analytics</button><button role="tab" data-t="p3">Risk &amp; flags</button><button role="tab" data-t="p4">Counterparties</button><button role="tab" data-t="p5">Excel report</button><button role="tab" data-t="p6">Dashboard</button>
+  </div>
+
+  <div class="y-panel on" id="p1"><div class="y-pcopy"><span class="y-tag">Document intelligence</span><h3>Know it is a real, readable statement before you pay.</h3>
+    <p>Scans, invoices, card statements, wrong passwords and broken files are caught first. A rejected file is never charged.</p>
+    <div class="y-3"><div><b>13</b><span>validation checks</span></div><div><b>₹0</b><span>if it is rejected</span></div><div><b>{{ BANK_COUNT }}</b><span>banks recognised</span></div></div>
+    <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a><a class="btn ghost" href="/banks">Supported banks</a></div></div>
+    <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><ul class="y-ui-list"><li class="ok">Genuine account statement</li><li class="ok">Password accepted</li><li class="ok">Readable and complete</li><li class="ok">Running balances reconcile</li><li class="warn">2 returned items to review</li></ul></div></div>
+
+  <div class="y-panel" id="p2"><div class="y-pcopy"><span class="y-tag">Financial analytics</span><h3>{{ METRIC_COUNT }} metrics, computed from every transaction.</h3>
+    <p>Monthly and total figures for income, obligations, balances and cash flow. Reversals are paired with the original debit and taken out of income.</p>
+    <div class="y-3"><div><b>{{ METRIC_COUNT }}</b><span>metrics</span></div><div><b>1</b><span>definition per metric</span></div><div><b>4</b><span>charts</span></div></div>
+    <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
+    <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><div class="y-ui-tabs"><span class="on">Monthly</span><span>Totals</span><span>Cash flow</span></div>
+      <table class="y-ui-t"><tr><td>Total credits</td><td>₹50,48,000</td></tr><tr><td>Average monthly credits</td><td>₹8,42,000</td></tr><tr><td>Average balance</td><td>₹3,10,420</td></tr><tr><td>Obligation ratio</td><td>31%</td></tr></table></div></div>
+
+  <div class="y-panel" id="p3"><div class="y-pcopy"><span class="y-tag">Risk &amp; flags</span><h3>A Low, Medium or High score, with every flag explained.</h3>
+    <p>Bounces, cash-heavy activity, round-trip transfers and balance patterns are flagged for review. Integrity indicators are prompts to check the original, not a verdict.</p>
+    <div class="y-3"><div><b>3</b><span>risk bands</span></div><div><b>Every</b><span>flag explained</span></div><div><b>0–100</b><span>score</span></div></div>
+    <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
+    <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><div class="y-score"><div class="y-ring"><b>18</b><small>Low</small></div><div><p><b>2</b> returned items</p><p><b>1</b> round-trip transfer</p><p><b>4</b> large cash credits</p></div></div></div></div>
+
+  <div class="y-panel" id="p4"><div class="y-pcopy"><span class="y-tag">Counterparties</span><h3>See who pays, who gets paid and what repeats.</h3>
+    <p>Top payers and payees, recurring debits such as EMIs and rent, and transfers that go out and come back.</p>
+    <div class="y-3"><div><b>Top 10</b><span>payers and payees</span></div><div><b>EMI</b><span>recurring debits</span></div><div><b>Loops</b><span>round-trip transfers</span></div></div>
+    <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
+    <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><table class="y-ui-t"><tr><td>Customer A (payer)</td><td>₹12.4 L</td></tr><tr><td>Customer B (payer)</td><td>₹8.1 L</td></tr><tr><td>Supplier C (payee)</td><td>₹9.6 L</td></tr><tr><td>Loan EMI (recurring)</td><td>₹42,000 / mo</td></tr></table></div></div>
+
+  <div class="y-panel" id="p5"><div class="y-pcopy"><span class="y-tag">Excel report</span><h3>Eight sheets that open ready.</h3>
+    <p>Lakh and crore formats, charts, categorised transactions, flags and a data dictionary. No cleanup before you share it.</p>
+    <div class="y-3"><div><b>8</b><span>sheets</span></div><div><b>4</b><span>charts</span></div><div><b>1</b><span>click to download</span></div></div>
+    <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
+    <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><div class="y-ui-tabs"><span class="on">Dashboard</span><span>Monthly</span><span>Totals</span><span>Transactions</span><span>Parties</span></div>
+      <table class="y-ui-t"><tr><td>Statement period</td><td>12 months</td></tr><tr><td>Transactions read</td><td>1,284</td></tr><tr><td>Reconciled to summary</td><td>Yes</td></tr><tr><td>Risk</td><td>Low (18)</td></tr></table></div></div>
+
+  <div class="y-panel" id="p6"><div class="y-pcopy"><span class="y-tag">Dashboard</span><h3>The answer on one screen, in the browser.</h3>
+    <p>Income, obligations, balances, bounces and the risk score without opening Excel. Reports stay in your account for {{ RETAIN_DAYS }} days.</p>
+    <div class="y-3"><div><b>{{ RETAIN_DAYS }}</b><span>days kept</span></div><div><b>{{ DUP_DAYS }}</b><span>days free re-open</span></div><div><b>Any</b><span>device, in the browser</span></div></div>
+    <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
+    <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><div class="y-ui-kpis"><div><small>Credits</small><b>₹50.5 L</b></div><div><small>Debits</small><b>₹47.2 L</b></div><div><small>Bounces</small><b>2</b></div></div><div class="y-ui-bars"><i style="--h:40%"></i><i style="--h:62%"></i><i style="--h:50%"></i><i style="--h:80%"></i><i style="--h:68%"></i><i style="--h:90%"></i><i style="--h:74%"></i></div></div></div>
+</section>
+
+<section class="lp-sec rv">
+  <p class="lp-kicker">The problem</p>
+  <h2>Your credit desk is buried in statements.</h2>
+  <p class="lp-note" style="margin:6px 0 0">Every bank lays its statement out differently. Reading them by hand means retyping rows, re-adding totals and hoping nothing was missed.</p>
+  <div class="y-prob">
+    <div><b>Many layouts</b><span>Every bank, and often every account type, prints differently</span></div>
+    <div><b>Locked PDFs</b><span>Passwords, scans and non-statements waste a cycle</span></div>
+    <div><b>Inflated income</b><span>Returned cheques and reversals count as credits if you add by hand</span></div>
+    <div><b>No working shown</b><span>A number with no trail is hard to check or defend</span></div>
+  </div>
+</section>
+
+<section class="lp-sec rv" id="how">
+  <p class="lp-kicker">One platform, the whole journey</p>
+  <h2>From upload to decision in five stages</h2>
+  <div class="y-stages">
+    <div class="y-stage"><em>01</em><span class="y-tag">Upload</span><h3>Add the PDF</h3><p>Statement, its password and the account holder's consent.</p><div class="y-pills"><span>Email sign-in</span><span>Consent logged</span></div><strong>In memory<small>never stored</small></strong></div>
+    <div class="y-stage"><em>02</em><span class="y-tag">Validate</span><h3>Check it first</h3><p>Real, readable, balances add up. Fails cost nothing.</p><div class="y-pills"><span>Scans</span><span>Wrong password</span><span>Invoices</span></div><strong>13 checks<small>before any charge</small></strong></div>
+    <div class="y-stage"><em>03</em><span class="y-tag">Extract</span><h3>Read every row</h3><p>Dates, amounts and balances for each bank layout.</p><div class="y-pills"><span>{{ BANK_COUNT }} banks</span><span>Reconciled</span></div><strong>{{ BANK_COUNT }} banks<small>several layouts each</small></strong></div>
+    <div class="y-stage"><em>04</em><span class="y-tag">Analyse</span><h3>Net, group, score</h3><p>Reversals paired, transactions categorised, flags raised.</p><div class="y-pills"><span>Bounces</span><span>Counterparties</span><span>Risk</span></div><strong>{{ METRIC_COUNT }} metrics<small>every one defined</small></strong></div>
+    <div class="y-stage"><em>05</em><span class="y-tag">Deliver</span><h3>Report and dashboard</h3><p>Excel with eight sheets and an on-screen summary.</p><div class="y-pills"><span>Excel</span><span>Dashboard</span></div><strong>{{ RETAIN_DAYS }} days<small>then deleted</small></strong></div>
+  </div>
+</section>
+
+<section class="lp-sec rv">
+  <p class="lp-kicker">Built into every report</p>
+  <h2>Scale and trust, by design</h2>
+  <div class="y-big">
+    <div><strong data-count="{{ METRIC_COUNT }}">{{ METRIC_COUNT }}</strong><span>metrics per report</span></div>
+    <div><strong data-count="13">13</strong><span>validation checks</span></div>
+    <div><strong data-count="{{ BANK_COUNT }}">{{ BANK_COUNT }}</strong><span>banks supported</span></div>
+    <div><strong data-count="8">8</strong><span>Excel sheets</span></div>
+  </div>
+  <div class="y-big small">
+    <div><strong>Every</strong><span>total recomputed from the transactions</span></div>
+    <div><strong>{{ RETAIN_DAYS }} days</strong><span>report retention, then deleted</span></div>
+    <div><strong>₹0</strong><span>charged on a failed upload</span></div>
+    <div><strong>{{ DUP_DAYS }} days</strong><span>same file re-opens free</span></div>
+  </div>
+</section>
+
+<section class="lp-sec rv">
+  <p class="lp-kicker">Built with lenders in mind</p>
+  <h2>Everything a credit officer looks for</h2>
+  <div class="y-grid9">
+    <div><small>Emailed code</small><b>No password to remember</b></div>
+    <div><small>Protected access</small><b>Secure staff sign-in</b></div>
+    <div><small>In memory</small><b>No stored statements</b></div>
+    <div><small>Consent logged</small><b>Every upload</b></div>
+    <div><small>Audit trail</small><b>Who did what, when</b></div>
+    <div><small>{{ BANK_COUNT }} banks</small><b>Several layouts each</b></div>
+    <div><small>Lakh · crore</small><b>Indian number formats</b></div>
+    <div><small>Data dictionary</small><b>Every metric defined</b></div>
+    <div><small>{{ PRICE }}</small><b>Prepaid, per report</b></div>
+  </div>
+</section>
+
+<section class="lp-sec lp-resp rv">
+  <p class="lp-kicker">Who is responsible for what</p>
+  <h2>A platform, not a lender</h2>
+  <div class="grid g2 lp-feats">
+    <div class="lp-feat"><h3>What {{ BRAND }} does</h3><p>Reads the statement you upload and produces a report and workbook. Statements are processed in memory and not stored, passwords are never kept, and reports are deleted after {{ RETAIN_DAYS }} days.</p></div>
+    <div class="lp-feat"><h3>What you do</h3><p>You obtain the account holder's consent before every upload, check the report against the original statement, and take the lending decision. You confirm consent when you sign up and again at each upload.</p></div>
+  </div>
+</section>
+
+<section class="lp-price rv" id="pricing">
+  <div>
+    <p class="lp-kicker">Pricing</p>
+    <h2>Pay per report. No subscription.</h2>
+    <ul>
+      <li>Prepaid packs: {{ MIN_TOPUP }} for your first report, then &#8377;250 for 5 reports, &#8377;1,000 for 20, &#8377;5,000 for 100. Wallet money is not refundable.</li>
+      <li>Rejected files, wrong passwords and scans are never charged</li>
+      <li>Same file again within {{ DUP_DAYS }} days opens the old report free</li>
+    </ul>
+  </div>
+  <div class="lp-price-card">
+    <strong>{{ PRICE }}</strong>
+    <span>per finished report</span>
+    <a class="btn big" href="/signup">Get started</a>
+  </div>
+</section>
+
+<section class="lp-sec rv" id="faq">
+  <p class="lp-kicker">Questions</p>
+  <h2>Before you upload</h2>
+  <div class="lp-faq">
+    <details><summary>How do I sign in?</summary><p>With your registered email. We send a 6-digit code to that address, valid for a few minutes. There is no password to remember.</p></details>
+    <details><summary>Can I get a refund on my wallet?</summary><p>No. Money added to the wallet is not refundable and cannot be withdrawn or transferred; it can only be used for reports. A report charged in error, or a payment that was debited but not credited, is corrected.</p></details>
+    <details><summary>Do you store the PDF password?</summary><p>No. It is used once to open the file and is not saved.</p></details>
+    <details><summary>Which banks are supported?</summary><p>{{ BANK_COUNT }} banks, listed on the <a href="/banks">supported banks</a> page. If a layout is not recognised you get a clear error and pay nothing.</p></details>
+    <details><summary>How long are reports kept?</summary><p>Excel files are kept for {{ RETAIN_DAYS }} days. Upload the statement again to regenerate one.</p></details>
+    <details><summary>Does the account holder need to consent?</summary><p>Yes. You must have the account holder's consent before you upload their statement, and you confirm this at sign-up and with every upload. You are responsible for that consent and for how you use the report.</p></details>
+    <details><summary>Is this a credit decision?</summary><p>No. {{ BRAND }} is a software platform. It reads the PDF you upload and computes figures from it. It does not verify the statement with the bank and does not take credit decisions. Check the report against the original statement before you rely on it.</p></details>
+  </div>
+</section>
+
+<section class="y-close rv">
+  <p class="lp-kicker">Stop retyping statements</p>
+  <h2>Let's turn <span>statements</span> into <span>decisions.</span></h2>
+  <p>Your first report is a minute away. Sign in with your email and a one-time code.</p>
+  <div class="lp-cta" style="justify-content:center"><a class="btn big" href="/signup">Get started</a><a class="btn big ghost" href="#product">See the product</a></div>
+</section>
+<script>
+(function(){
+ var tabs=document.querySelectorAll('.y-tabs button'),panels=document.querySelectorAll('.y-panel');
+ tabs.forEach(function(b){b.addEventListener('click',function(){tabs.forEach(function(x){x.classList.toggle('on',x===b)});panels.forEach(function(p){p.classList.toggle('on',p.id===b.dataset.t)})})});
+ var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+
+ /* product headline: "Many checks." fades in, then "One statement report." (1.5 s in all), replayed each time it enters the viewport in either direction */
+ (function(){var h=document.getElementById('fh');if(!h||reduce||!('IntersectionObserver' in window))return;var on=false;
+  new IntersectionObserver(function(es){es.forEach(function(e){
+   if(e.isIntersecting&&!on){on=true;h.classList.remove('go');void h.offsetWidth;h.classList.add('go')}
+   else if(!e.isIntersecting&&on){on=false;h.classList.remove('go')}})},{threshold:.6}).observe(h);
+  h.classList.add('arm');
+ })();
+ /* typewriter headline: types over 1.5 s every time the section enters the viewport, scrolling down or back up */
+ (function(){var h=document.getElementById('tw');if(!h)return;var full=h.textContent.trim(),raf=0,t0=0,shown=false;
+  h.setAttribute('aria-label',full);
+  function set(n){h.innerHTML='<span aria-hidden="true">'+full.slice(0,n).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span><span class="y-ghost" aria-hidden="true">'+full.slice(n).replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span>'}
+  function run(){cancelAnimationFrame(raf);t0=0;h.classList.add('typing');
+   (function step(ts){if(!t0)t0=ts;var k=Math.min(1,(ts-t0)/1500);set(Math.round(full.length*k));if(k<1)raf=requestAnimationFrame(step);else h.classList.remove('typing')})(performance.now())}
+  function reset(){cancelAnimationFrame(raf);h.classList.remove('typing');set(0)}
+  if(reduce||!('IntersectionObserver' in window)){return}
+  set(0);
+  new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting&&!shown){shown=true;run()}else if(!e.isIntersecting&&shown){shown=false;reset()}})},{threshold:.6}).observe(h);
+ })();
+ /* intro video: starts when it scrolls into view, with sound where the browser allows it; otherwise muted until the first click, tap or key press */
+ var w=document.getElementById('vwrap'),v=document.getElementById('intro'),sb=document.getElementById('snd'),pp=document.getElementById('pp'),big=document.getElementById('bigplay'),
+     prog=document.getElementById('prog'),pf=document.getElementById('progf'),tm=document.getElementById('vtime'),fs=document.getElementById('fs'),sndt=document.getElementById('sndt');
+ var inView=false,userMuted=false,ended=false,idle;
+ function mmss(x){x=Math.max(0,Math.floor(x||0));return Math.floor(x/60)+':'+('0'+x%60).slice(-2)}
+ function ui(){var on=!v.muted&&v.volume>0,pl=!v.paused&&!v.ended;
+  w.classList.toggle('playing',pl);w.classList.toggle('sound',on);w.classList.toggle('nosound',pl&&!on);
+  sb.setAttribute('aria-pressed',on?'true':'false');sb.setAttribute('aria-label',on?'Turn sound off':'Turn sound on');
+  pp.setAttribute('aria-label',pl?'Pause':'Play');big.hidden=pl;
+  var d=v.duration||0;pf.style.width=(d?v.currentTime/d*100:0)+'%';prog.setAttribute('aria-valuenow',Math.round(d?v.currentTime/d*100:0));tm.textContent=mmss(v.currentTime)+' / '+mmss(d||46)}
+ function tryPlay(){var p=v.play();if(p&&p.catch)p.catch(function(){v.muted=true;ui();var q=v.play();if(q&&q.catch)q.catch(function(){ui()})})}
+ function start(){if(!inView||ended||reduce)return;if(!userMuted)v.muted=false;tryPlay();ui()}
+ ['timeupdate','play','pause','volumechange','loadedmetadata'].forEach(function(n){v.addEventListener(n,ui)});
+ v.addEventListener('ended',function(){ended=true;ui()});
+ function toggle(){if(v.paused||v.ended){if(v.ended){v.currentTime=0;ended=false}if(!userMuted)v.muted=false;tryPlay()}else v.pause();ui()}
+ pp.addEventListener('click',toggle);big.addEventListener('click',toggle);v.addEventListener('click',toggle);
+ sb.addEventListener('click',function(){if(v.muted||v.volume===0){userMuted=false;v.muted=false;if(v.volume===0)v.volume=1}else{userMuted=true;v.muted=true}if(v.paused&&!ended)tryPlay();ui()});
+ fs.addEventListener('click',function(){var f=w.requestFullscreen||w.webkitRequestFullscreen;if(document.fullscreenElement||document.webkitFullscreenElement){(document.exitFullscreen||document.webkitExitFullscreen).call(document)}else if(f){f.call(w)}else if(v.webkitEnterFullscreen){v.webkitEnterFullscreen()}});
+ function seek(e){var r=prog.getBoundingClientRect();if(v.duration)v.currentTime=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width))*v.duration;ended=false;ui()}
+ prog.addEventListener('click',seek);
+ prog.addEventListener('keydown',function(e){if(e.key==='ArrowRight')v.currentTime=Math.min(v.duration||0,v.currentTime+5);if(e.key==='ArrowLeft')v.currentTime=Math.max(0,v.currentTime-5)});
+ function firstGesture(e){if(e.target.closest&&e.target.closest('#vbar,#bigplay'))return;document.removeEventListener('pointerdown',firstGesture);document.removeEventListener('keydown',firstGesture);
+  if(inView&&!userMuted&&v.muted){v.muted=false;if(v.paused&&!ended)tryPlay();ui()}}
+ document.addEventListener('pointerdown',firstGesture);document.addEventListener('keydown',firstGesture);
+ w.addEventListener('mousemove',function(){w.classList.add('active');clearTimeout(idle);idle=setTimeout(function(){w.classList.remove('active')},2600)});
+ if('IntersectionObserver' in window){new IntersectionObserver(function(es){es.forEach(function(e){inView=e.isIntersecting&&e.intersectionRatio>=.5;if(inView)start();else if(!v.paused)v.pause()})},{threshold:[0,.5,.75]}).observe(w)}
+ ui();
+ if(!reduce&&'IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;io.unobserve(e.target);var el=e.target,n=+el.dataset.count,t0=performance.now();
+  (function step(t){var p=Math.min(1,(t-t0)/900);el.textContent=Math.round(n*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(step)})(t0)})},{threshold:.4});
+  document.querySelectorAll('[data-count]').forEach(function(el){io.observe(el)})}
+})();
+</script>
+
+{% endblock %}

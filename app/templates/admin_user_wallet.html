@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Wallet history | {{ BRAND }}{% endblock %}
+{% block body %}
+<a href="/admin/users">&larr; Users</a>
+<h1>{{ u.name }}</h1><p class="sub">{{ u.email }} &middot; balance {{ u.balance_paise | paise }}{% if u.held_paise %} &middot; {{ u.held_paise | paise }} reserved{% endif %}{% if u.privileged %} &middot; rate {{ u.price_paise | paise }}{% endif %}</p>
+{% if problems %}<div class="banner bad"><b>Integrity problem</b><ul style="margin:6px 0 0 18px">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% else %}<div class="banner ok">History is intact and matches the balance.</div>{% endif %}
+<div class="card"><h2>Wallet history</h2>
+{% if rows %}<div class="tablewrap"><table><tr><th>#</th><th>When (UTC)</th><th>Type</th><th>Note</th><th>Reference</th><th class="n">Amount</th><th class="n">Balance after</th></tr>
+{% for h in rows %}<tr><td>{{ h.id }}</td><td>{{ h.created_at[:19] }}</td><td>{{ h.kind }}</td><td>{{ h.note or '' }}</td><td>{{ h.ref or '' }}</td><td class="n">{{ h.amount_paise | paise }}</td><td class="n">{{ h.balance_after_paise | paise }}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No wallet activity.</p>{% endif %}</div>
+{% endblock %}

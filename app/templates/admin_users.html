@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Users | {{ BRAND }}{% endblock %}
+{% block body %}
+<h1>Create a user account</h1><p class="sub">Master accounts only. The customer signs in with a code emailed to this address and accepts the Terms and consent undertaking on first sign-in. No password is created.</p>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+{% if created %}<div class="banner ok">Account created for {{ created }}. They can now sign in with their email.</div>{% endif %}
+<div class="card">
+ <form method="post" action="/admin/users"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="grid g3">
+   <div class="field"><label>Name</label><input type="text" name="name" required maxlength="80"></div>
+   <div class="field"><label>Email</label><input type="email" name="email" required></div>
+   <div class="field"><label>Mobile</label><input type="tel" name="mobile" required inputmode="numeric" maxlength="14" placeholder="98765 43210"></div>
+   <div class="field"><label>Role</label><select name="role" required><option value="">Choose</option>{% for k,v in roles.items() %}<option value="{{k}}">{{v}}</option>{% endfor %}</select></div>
+   <div class="field"><label>Company (optional)</label><input type="text" name="org" maxlength="100"></div>
+   <div class="field"><label>Starting credit in rupees (optional)</label><input type="number" name="credit" min="0" step="1"></div>
+   <div class="field"><label><input type="checkbox" name="privileged" value="1" style="width:auto"> Privileged customer</label><input type="number" name="rate" min="1" step="0.5" placeholder="Rate per report in rupees (default {{ (PRIV_PRICE // 100) }})"></div>
+  </div>
+  <button class="btn">Create account</button></form></div>
+<div class="card"><h2>Recent accounts</h2>
+<div class="tablewrap"><table><tr><th>Name</th><th>Email</th><th>Mobile</th><th>Role</th><th class="n">Wallet</th><th>Rate</th><th>Created</th></tr>
+{% for u in rows %}<tr><td><a href="/admin/users/{{ u.id }}/wallet">{{ u.name }}</a>{% if u.is_master %} <span class="pill ok">Master</span>{% endif %}</td><td>{{ u.email }}</td><td>{{ u.mobile or '' }}</td><td>{{ u.role }}</td><td class="n">{{ u.balance_paise | paise }}</td><td>{% if u.privileged %}<span class="pill ok">{{ u.price_paise | paise }} / report</span>{% else %}Standard{% endif %}
+<form method="post" action="/admin/users/{{ u.id }}/privilege" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="on" value="{{ 0 if u.privileged else 1 }}"><button class="btn ghost small">{{ 'Remove' if u.privileged else 'Make privileged' }}</button></form></td><td>{{ u.created_at[:16] }}</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

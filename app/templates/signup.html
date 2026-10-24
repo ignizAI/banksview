@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}Create account | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="auth card">
+  <h1>Create your account</h1><p class="sub">For DSAs, loan agents and small NBFCs. We email a code to confirm your address.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  <form method="post" action="/signup">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label>Your name</label><input type="text" name="name" value="{{ form.get('name','') }}" required maxlength="80" autocomplete="name"></div>
+    <div class="field"><label>I am a</label><select name="role" required><option value="">Choose</option>
+      {% for k,v in roles.items() %}<option value="{{k}}" {{ 'selected' if form.get('role')==k }}>{{v}}</option>{% endfor %}</select></div>
+    <div class="field"><label>Company / firm (optional)</label><input type="text" name="org" value="{{ form.get('org','') }}" maxlength="100" autocomplete="organization"></div>
+    <div class="grid g2">
+      <div class="field"><label>Mobile number</label><input type="tel" name="mobile" value="{{ form.get('mobile','') }}" inputmode="numeric" maxlength="14" placeholder="98765 43210" required autocomplete="tel"><div class="hint">Indian number, for contact.</div></div>
+      <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required autocomplete="email"></div>
+    </div>
+    <fieldset class="consent">
+      <legend>Required to create an account</legend>
+      <label><input type="checkbox" name="agree_terms" value="1" required> I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a>. I understand that {{ BRAND }} is a software platform, that wallet money is not refundable, and that I am responsible for how I use the reports.</label>
+      <label><input type="checkbox" name="agree_privacy" value="1" required> I have read the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> and consent to my account data being processed as described there.</label>
+      <label><input type="checkbox" name="agree_borrower" value="1" required> I will upload a bank statement only after the account holder has consented to it being uploaded and analysed, and only when I am authorised to upload it.</label>
+    </fieldset>
+    <button class="btn" style="width:100%">Email me a code</button>
+  </form>
+  <p class="muted" style="margin-top:14px">Already have an account? <a href="/login">Sign in</a></p>
+</div>
+{% endblock %}

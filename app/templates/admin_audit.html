@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Wallet audit | {{ BRAND }}{% endblock %}
+{% block body %}
+<h1>Wallet audit</h1><p class="sub">Checks every balance against its append-only history and the signature on each entry.</p>
+{% if problems %}<div class="banner bad"><b>{{ problems|length }} problem{{ '' if problems|length==1 else 's' }} found</b><ul style="margin:6px 0 0 18px">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+{% else %}<div class="banner ok"><b>All clear.</b> Every wallet matches its history and every entry's signature is intact.</div>{% endif %}
+<div class="grid g4">
+ <div class="card"><small class="muted">Accounts</small><div style="font-size:26px;font-weight:700">{{ n_users }}</div></div>
+ <div class="card"><small class="muted">History entries</small><div style="font-size:26px;font-weight:700">{{ n_rows }}</div></div>
+ <div class="card"><small class="muted">Customer money held</small><div style="font-size:26px;font-weight:700">{{ (total_balance + total_held) | paise }}</div></div>
+ <div class="card"><small class="muted">UPI payments to confirm</small><div style="font-size:26px;font-weight:700"><a href="/admin/payments">{{ review }}</a></div></div>
+</div>
+{% endblock %}

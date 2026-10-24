@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block title %}{{ title }} | {{ BRAND }}{% endblock %}
+{% block body %}<div class="card" style="max-width:560px;margin:30px auto"><h1>{{ title }}</h1><p class="sub">{{ message }}</p><a class="btn" href="{{ '/dashboard' if user else '/' }}">Go back</a></div>{% endblock %}

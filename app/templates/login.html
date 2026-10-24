@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Sign in | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="auth card">
+  <h1>Sign in</h1><p class="sub">Enter your registered email. We send you a 6-digit code.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  <form method="post" action="/login">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required autocomplete="email" autofocus></div>
+    <button class="btn" style="width:100%">Email me a code</button>
+  </form>
+  <p class="muted" style="margin-top:14px">New here? <a href="/signup">Create an account</a></p>
+</div>
+{% endblock %}

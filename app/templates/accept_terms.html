@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Accept updated terms | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="auth card">
+  <h1>Please confirm to continue</h1><p class="sub">Our terms are version {{ TERMS_VERSION }}. You need to accept them before using {{ BRAND }}.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  <form method="post" action="/terms/accept">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <fieldset class="consent">
+      <legend>Required</legend>
+      <label><input type="checkbox" name="agree_terms" value="1" required> I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a>. I understand that {{ BRAND }} is a software platform, and that I am responsible for how I use the reports.</label>
+      <label><input type="checkbox" name="agree_privacy" value="1" required> I have read the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> and consent to my account data being processed as described there.</label>
+      <label><input type="checkbox" name="agree_borrower" value="1" required> I will upload a bank statement only after the account holder has consented to it being uploaded and analysed, and only when I am authorised to upload it.</label>
+    </fieldset>
+    <button class="btn" style="width:100%">Accept and continue</button>
+  </form>
+</div>
+{% endblock %}

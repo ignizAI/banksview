@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block title %}Privacy Policy | {{ BRAND }}{% endblock %}
+{% block body %}
+<article class="doc">
+<p class="lp-kicker">Version {{ TERMS_VERSION }}</p>
+<h1>Privacy Policy</h1>
+<p class="sub">What {{ BRAND }} collects, why, how long it is kept and how to reach us.</p>
+
+<h2>1. Who we are</h2>
+<p>{{ BRAND }} is operated by {{ COMPANY_NAME }}{% if COMPANY_ADDRESS %}, {{ COMPANY_ADDRESS }}{% endif %}. This policy applies to the website and to the report service.</p>
+
+<h2>2. What we collect</h2>
+<table>
+<tr><th>Data</th><th>Why</th><th>How long</th></tr>
+<tr><td><b>Your account:</b> name, email, mobile (optional), organisation, role, password (stored only as a one-way hash), two-factor key</td><td>To run your account and keep it secure</td><td>While your account is open, then as the law requires</td></tr>
+<tr><td><b>Your agreement:</b> the terms you accepted, version, time, network address and browser</td><td>To keep a record of consent</td><td>While your account is open and for the period the law requires after</td></tr>
+<tr><td><b>Activity log:</b> sign-ins, uploads, report views and downloads, with time and network address</td><td>Security, fraud prevention and dispute handling</td><td>As the law requires, then deleted</td></tr>
+<tr><td><b>Uploaded statement PDF</b></td><td>To read it and produce your report</td><td>Processed in memory. It is not written to storage and is gone when processing ends</td></tr>
+<tr><td><b>PDF password</b></td><td>To open the file once</td><td>Never stored</td></tr>
+<tr><td><b>Report:</b> the Excel workbook and the on-screen summary, which contain transaction details and counterparty names from the statement</td><td>To give you the report you asked for</td><td>Deleted {{ RETAIN_DAYS }} days after creation</td></tr>
+<tr><td><b>Billing record:</b> date, your reference, bank, period, transaction count, risk band, amount charged, wallet entries</td><td>Accounts, tax and dispute handling</td><td>As the law requires</td></tr>
+<tr><td><b>Payments:</b> handled by the payment gateway. We keep the order number, status and amount, not card or bank-account details</td><td>To credit your wallet</td><td>As the law requires</td></tr>
+</table>
+
+<h2>3. Statement data and consent</h2>
+<p>Statements contain personal and financial data of the account holder. We process it only to produce the report you asked for. You confirm, at sign-up and again with every upload, that the account holder has consented to the upload and analysis, and that you are authorised to upload the file. We do not use statement data to train any model, we do not sell it, and we do not use it to contact the account holder.</p>
+
+<h2>4. Who we share data with</h2>
+<p>We share data only with service providers that help us run {{ BRAND }} (for example hosting and the payment gateway), and with authorities where the law requires. We do not share one user's reports with another user.</p>
+
+<h2>5. Security</h2>
+<p>We protect data with the measures described on the <a href="/security">Security</a> page. No system is completely secure. If a breach affects your data we will notify the people and authorities the law requires, within the time it requires.</p>
+
+<h2>6. Your rights</h2>
+<p>You can ask us to give you a summary of the personal data we hold about you, correct it, or delete it, and you can withdraw consent. An account holder whose statement was uploaded can ask us to delete the related report. Write to the grievance contact below. We may need to keep some records where the law requires it.</p>
+
+<h2>7. Children</h2>
+<p>{{ BRAND }} is for business users and is not meant for anyone under 18.</p>
+
+<h2>8. Changes</h2>
+<p>If we change this policy we update the version number and ask you to accept it again.</p>
+
+<h2>9. Grievance contact</h2>
+<p>{% if GRIEVANCE_OFFICER %}{{ GRIEVANCE_OFFICER }}{% if GRIEVANCE_EMAIL %}: <a href="mailto:{{ GRIEVANCE_EMAIL }}">{{ GRIEVANCE_EMAIL }}</a>{% endif %}. {% endif %}See <a href="/grievance">Grievance</a>.</p>
+</article>
+{% endblock %}

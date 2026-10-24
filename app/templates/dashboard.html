@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% block title %}Reports | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="row" style="margin-bottom:18px"><div><h1>New report</h1><p class="sub" style="margin:0">Hello {{ user.name.split(' ')[0] }}. {% if user.master %}Master account: reports are free and always regenerated.{% else %}Each report costs {{ PRICE }}, charged only when it is produced.{% endif %}</p></div>
+  {% if user.master %}<div class="right"><span class="pill ok">Master · no charges</span></div>{% else %}<div class="right"><span class="muted">Wallet balance</span><br><strong style="font-size:22px">{{ user.balance_paise | paise }}</strong> &nbsp;<a class="btn ghost small" href="/wallet">Add money</a></div>{% endif %}</div>
+
+{% if error %}
+<div class="banner bad"><b>{% if error.code == 'PASSWORD_REQUIRED' or error.code == 'WRONG_PASSWORD' %}Password needed{% elif error.code == 'CONSENT_REQUIRED' %}Confirmation needed{% else %}We could not read this file{% endif %}</b>
+  {{ error.message }} <b style="margin-top:6px;font-weight:600">You were not charged.</b><span class="code">{{ error.code }}</span></div>
+{% endif %}
+
+<div class="card">
+{% if low %}
+  <h2>Add money to start</h2>
+  <p class="muted">Your balance is below {{ PRICE }}. Choose a pack on the wallet page to add reports.</p>
+  <a class="btn" href="/wallet">Add money to wallet</a>
+{% else %}
+  <form method="post" action="/reports" enctype="multipart/form-data" id="up">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label class="drop" id="drop"><input type="file" name="file" accept="application/pdf,.pdf" required id="f">
+      <b id="fn">Choose the PDF bank statement</b><small>PDF only, up to {{ MAX_MB }} MB. Savings, current or overdraft account.</small></label>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field"><label>PDF password (if it has one)</label><input type="password" name="password" autocomplete="off" placeholder="Leave empty if not protected"></div>
+      <div class="field"><label>Applicant / loan reference (optional)</label><input type="text" name="applicant_ref" maxlength="60" value="{{ form.get('applicant_ref','') }}" placeholder="e.g. LAN-10234 or customer name"></div>
+    </div>
+    <label class="consent-line"><input type="checkbox" name="borrower_consent" value="1" required> The account holder has consented to this statement being uploaded and analysed, and I am authorised to upload it. <a href="/terms" target="_blank" rel="noopener">Terms</a></label>
+    <button class="btn big" id="go">Generate report &middot; {{ PRICE }}</button>
+    <span class="hint" style="margin-left:10px">The password is used once to open the file and is never stored.</span>
+  </form>
+{% endif %}
+</div>
+
+<div class="card"><h2>Your reports</h2>
+{% if reports %}<div class="tablewrap"><table>
+  <tr><th>Date</th><th>Reference</th><th>Statement</th><th class="n">Txns</th><th>Risk</th><th>Status</th><th></th></tr>
+  {% for r in reports %}<tr>
+   <td>{{ r.created_at[:16] }}</td>
+   <td>{{ r.applicant_ref or '-' }}<div class="muted" style="font-size:12px">{{ r.filename }}</div></td>
+   <td>{% if r.status=='done' %}{{ r.bank or 'Bank' }} {{ r.account_masked or '' }}<div class="muted" style="font-size:12px">{{ r.period_from }} to {{ r.period_to }}</div>{% else %}-{% endif %}</td>
+   <td class="n">{{ r.txn_count or '-' }}</td>
+   <td>{% if r.risk_band %}<span class="pill {{ {'Low':'ok','Medium':'warn','High':'bad'}[r.risk_band] }}">{{ r.risk_band }} &middot; {{ r.risk_score }}</span>{% else %}-{% endif %}</td>
+   <td>{% if r.status=='done' %}<span class="pill ok">Charged {{ r.charged_paise | paise }}</span>{% elif r.status=='failed' %}<span class="pill mut" title="{{ r.error_message }}">Not charged &middot; {{ r.error_code }}</span>{% else %}<span class="pill warn">Processing</span>{% endif %}</td>
+   <td class="right">{% if r.status=='done' %}<a class="btn small" href="/reports/{{ r.id }}">Open</a>{% endif %}</td></tr>{% endfor %}
+</table></div>{% else %}<p class="muted">No reports yet. Upload a statement above.</p>{% endif %}</div>
+<script>
+var f=document.getElementById('f'),fn=document.getElementById('fn'),d=document.getElementById('drop'),up=document.getElementById('up');
+if(f){f.addEventListener('change',function(){if(f.files[0]){fn.textContent=f.files[0].name;d.classList.add('on')}});
+up.addEventListener('submit',function(){var b=document.getElementById('go');b.disabled=true;b.textContent='Reading statement...'});}
+</script>
+{% endblock %}

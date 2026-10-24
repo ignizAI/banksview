@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}Security | {{ BRAND }}{% endblock %}
+{% block body %}
+<article class="doc">
+<p class="lp-kicker">Security</p>
+<h1>How we protect your data</h1>
+<p class="sub">The strongest control is not holding data we do not need. No system is impenetrable, so we describe what is in place and make no promise beyond it.</p>
+<h2>In place</h2>
+<ul>
+<li><b>Statements are not stored.</b> The uploaded PDF is processed in memory and is never written to storage.</li>
+<li><b>PDF passwords are never stored.</b> They are used once, in memory, to open the file.</li>
+<li><b>Reports expire.</b> The workbook and its on-screen summary are deleted {{ RETAIN_DAYS }} days after creation.</li>
+<li><b>Strong password storage.</b> Passwords are stored as Argon2id hashes.</li>
+<li><b>Two-factor sign-in.</b> An authenticator-app code is required for every account on the live service.</li>
+<li><b>Account separation.</b> Every report belongs to one account and cannot be opened from another.</li>
+<li><b>Activity record.</b> Sign-ins, uploads, views and downloads are logged per user.</li>
+<li><b>Request protection.</b> Anti-forgery tokens, sign-in throttling, strict browser security headers and encrypted connections (HTTPS) on the live service.</li>
+<li><b>No model training.</b> Customer statements are never used to train models.</li>
+</ul>
+<h2>Not yet in place</h2>
+<ul>
+<li>Independent security certification (SOC 2 or ISO 27001). We make no claim of certification.</li>
+<li>A completed independent penetration test.</li>
+</ul>
+<p>If you find a vulnerability, please tell us through the <a href="/grievance">grievance contact</a>.</p>
+</article>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Supported banks | {{ BRAND }}{% endblock %}
+{% block body %}
+<article class="doc">
+<p class="lp-kicker">Coverage</p>
+<h1>Supported banks</h1>
+<p class="sub">{{ BANK_COUNT }} banks, each tested against three or more statement layouts.</p>
+<div class="bank-grid">
+{% for b in BANKS %}<div class="bank"><b>{{ b.name }}</b><small>IFSC {{ b.ifsc }} &middot; {{ b.layouts|length }} layouts tested</small></div>{% endfor %}
+</div>
+<h2>What "supported" means</h2>
+<p>Each layout is tested with statements built to the bank's published column format, using fictional data, and every test checks that each running balance reconciles. Banks change formats and offer several for different account types, so a statement from a listed bank can still be unreadable. If a file cannot be read, you see a clear message and you are not charged.</p>
+<p>Banks that are not listed may work if they use a similar layout, but we do not support them yet. The statement must be a text PDF downloaded from the bank. Scanned images are not accepted.</p>
+</article>
+{% endblock %}

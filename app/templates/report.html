@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block title %}Report {{ r.id }} | {{ BRAND }}{% endblock %}
+{% set h = s.head %}
+{% set maxv = [1] %}{% for m in s.months %}{% if m.credit > maxv[0] %}{% set _ = maxv.__setitem__(0, m.credit) %}{% endif %}{% if m.debit > maxv[0] %}{% set _ = maxv.__setitem__(0, m.debit) %}{% endif %}{% endfor %}
+{% block body %}
+<div class="row" style="margin-bottom:6px"><div><h1>{{ r.applicant_ref or 'Statement report' }}</h1>
+ <p class="sub" style="margin:0">{{ s.meta.bank or 'Bank' }} {{ s.meta.account_masked or '' }} &middot; {{ s.meta.account_type or '' }} &middot; {{ r.period_from }} to {{ r.period_to }} &middot; {{ r.txn_count }} transactions</p></div>
+ <div>{% if not expired %}<a class="btn big" href="/reports/{{ r.id }}/download">Download Excel</a>{% else %}<span class="pill mut">Excel expired</span>{% endif %}</div></div>
+{% if s.meta.holder %}<p class="muted" style="margin:0 0 18px">Account holder: {{ s.meta.holder }}</p>{% else %}<div style="height:18px"></div>{% endif %}
+
+<div class="grid g4" style="margin-bottom:18px">
+ <div class="kpi"><small>Avg monthly credits (adjusted)</small><strong>{{ h.avg_monthly_credit | inr }}</strong></div>
+ <div class="kpi"><small>Avg monthly net inflow</small><strong>{{ h.avg_monthly_inflow | inr }}</strong></div>
+ <div class="kpi"><small>Average daily balance</small><strong>{{ h.bal_avg | inr }}</strong></div>
+ <div class="kpi"><small>Closing balance</small><strong>{{ h.bal_close | inr }}</strong></div>
+ <div class="kpi"><small>EMIs paid</small><strong>{{ h.emi_debit | inr }}</strong></div>
+ <div class="kpi"><small>FOIR</small><strong>{{ h.foir_pct }}%</strong></div>
+ <div class="kpi {{ 'bad' if h.bounce_count else '' }}"><small>Bounced items</small><strong>{{ h.bounce_count }}</strong></div>
+ <div class="kpi {{ {'Low':'ok','Medium':'warn','High':'bad'}[h.risk_band] }}"><small>Risk score</small><strong>{{ h.risk_score }} &middot; {{ h.risk_band }}</strong></div>
+</div>
+
+{% if s.summary_check and s.summary_check.verified %}<div class="banner ok"><b>Matches the bank's own summary</b>Credits, debits and transaction counts ({{ s.summary_check.cr }} credits, {{ s.summary_check.dr }} debits) agree with the totals printed on the statement.</div>{% endif %}
+{% if h.credit_reversal %}<div class="banner warn"><b>Printed credits are overstated</b>The statement shows {{ h.credit_gross | inr }} of credits, but {{ h.credit_reversal | inr }} are reversals of the account's own debits (such as rejected cheques). Adjusted credits are {{ h.credit_adj | inr }}.</div>{% endif %}
+
+<div class="card"><h2>Monthly credits and debits</h2>
+ <div class="bars">{% for m in s.months %}<div class="m"><div class="pair"><i class="c" style="height:{{ (m.credit / maxv[0] * 100) | round(1) }}%" title="Credits {{ m.credit | inr }}"></i><i class="d" style="height:{{ (m.debit / maxv[0] * 100) | round(1) }}%" title="Debits {{ m.debit | inr }}"></i></div></div>{% endfor %}</div>
+ <div class="bl">{% for m in s.months %}<span>{{ m.label }}{{ '*' if m.partial }}</span>{% endfor %}</div>
+ <div class="legend"><b style="background:var(--accent)"></b>Adjusted credits<b style="background:#e08e45"></b>Adjusted debits &nbsp;&middot;&nbsp; * partial month</div>
+ <div class="tablewrap" style="margin-top:14px"><table><tr><th>Month</th><th class="n">Credits</th><th class="n">Debits</th><th class="n">Net</th><th class="n">Avg balance</th></tr>
+ {% for m in s.months %}<tr><td>{{ m.label }}{{ '*' if m.partial }}</td><td class="n">{{ m.credit | inr }}</td><td class="n">{{ m.debit | inr }}</td><td class="n">{{ m.net | inr }}</td><td class="n">{{ m.bal_avg | inr }}</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="card"><h2>Flags</h2>
+ {% for f in s.flags %}<div class="flag"><span class="pill {{ {'High':'bad','Medium':'warn','Low':'mut'}[f.severity] }}" style="height:fit-content">{{ f.severity }}</span><div><b>{{ f.title }}</b><p>{{ f.detail }}</p></div></div>
+ {% else %}<p class="muted">No risk flags were raised for this statement.</p>{% endfor %}
+</div>
+
+<div class="grid g2">
+ <div class="card"><h3>Top payers</h3>{% if s.top_payers %}<table>{% for p in s.top_payers %}<tr><td>{{ p.party }}</td><td class="n">{{ p.amount | inr }}</td><td class="n muted">{{ p.share_pct }}%</td></tr>{% endfor %}</table>{% else %}<p class="muted">No named payers found.</p>{% endif %}</div>
+ <div class="card"><h3>Top payees</h3>{% if s.top_payees %}<table>{% for p in s.top_payees %}<tr><td>{{ p.party }}</td><td class="n">{{ p.amount | inr }}</td><td class="n muted">{{ p.share_pct }}%</td></tr>{% endfor %}</table>{% else %}<p class="muted">No named payees found.</p>{% endif %}</div>
+</div>
+<p class="muted">The Excel file has {{ h.data_points }} data points across monthly and total columns, every transaction categorised, daily balances and a data dictionary.</p>
+{% endblock %}

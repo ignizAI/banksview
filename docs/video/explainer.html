@@ -1,0 +1,93 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>BanksView explainer</title>
+<style>
+:root{--ink:#0B1220;--muted:#5B6677;--line:#D9E5F5;--cream:#F5F9FF;--pink:#CFE2FF;--blush:#E3EEFF;--peach:#EAF2FF;--accent:#1C78FF;--ok:#1E6B3A;--okbg:#DDF3E3;--card:#FFFFFF}
+*{box-sizing:border-box;margin:0}
+html,body{width:1280px;height:720px;overflow:hidden;background:var(--cream);font-family:Inter,"Plus Jakarta Sans",Arial,sans-serif;color:var(--ink)}
+.scene{position:absolute;inset:0;padding:64px 80px;opacity:0;transition:opacity .6s ease;display:flex;flex-direction:column;justify-content:center}
+.scene.on{opacity:1}
+.bg1{background:radial-gradient(900px 500px at 85% 0,var(--pink),transparent 70%),var(--cream)}
+.bg2{background:linear-gradient(135deg,var(--peach),var(--blush))}
+.kick{font-size:20px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:68px;line-height:1.04;letter-spacing:-.04em;max-width:980px}
+h2{font-size:52px;line-height:1.06;letter-spacing:-.035em;max-width:760px}
+p.sub{font-size:26px;color:var(--muted);margin-top:18px;max-width:760px;line-height:1.35}
+mark{background:linear-gradient(transparent 62%,var(--pink) 62%);color:inherit}
+.row{display:flex;gap:56px;align-items:center}.row>*{flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:0 30px 60px -30px rgba(20,60,140,.4)}
+.pop{opacity:0;transform:translateY(18px) scale(.97);transition:all .6s cubic-bezier(.22,.8,.26,1)}.pop.on{opacity:1;transform:none}
+/* scene 1 */
+.stack{position:relative;height:380px}.pdf{position:absolute;width:250px;height:330px;padding:22px;border-radius:14px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px -22px rgba(20,60,140,.5)}
+.pdf i{display:block;height:9px;border-radius:5px;background:var(--blush);margin:12px 0}.pdf i:nth-child(odd){width:70%}.pdf b{font-size:15px;color:var(--accent)}
+/* scene 2 */
+.drop{border:3px dashed var(--accent);border-radius:22px;padding:30px;text-align:center;background:rgba(255,250,242,.7)}
+.drop .file{display:inline-flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 20px;font-weight:700;font-size:22px}
+.field{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;font-size:22px;display:flex;justify-content:space-between}
+.chk{margin-top:16px;font-size:19px;color:var(--muted);display:flex;gap:12px;align-items:center}.box{width:26px;height:26px;border-radius:7px;border:2px solid var(--accent);display:grid;place-items:center;color:#fff;font-weight:800}.box.on{background:var(--accent)}
+/* scene 3 */
+.checks{display:grid;gap:12px}.ck{display:flex;gap:16px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;font-size:23px;font-weight:600;opacity:.35;transition:all .4s}
+.ck .d{width:30px;height:30px;border-radius:50%;background:var(--blush);display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px}
+.ck.on{opacity:1;background:var(--okbg);color:var(--ok)}.ck.on .d{background:var(--ok)}
+/* scene 4 */
+.big{font-size:150px;font-weight:800;letter-spacing:-.06em;color:var(--accent);line-height:1}
+.bar{height:16px;border-radius:9px;background:var(--blush);overflow:hidden;margin-top:26px;max-width:620px}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#6FA8FF)}
+.tags{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px;max-width:640px}.tags span{background:var(--card);border:1px solid var(--line);padding:9px 16px;border-radius:99px;font-size:19px;font-weight:600}
+/* scene 5 */
+.dash{padding:26px}.kp{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.kp div{background:var(--peach);border-radius:14px;padding:14px 16px}.kp small{display:block;color:var(--muted);font-size:15px}.kp b{font-size:30px;letter-spacing:-.03em}
+.bars{display:flex;align-items:flex-end;gap:12px;height:170px;margin-top:22px}.bars i{flex:1;border-radius:9px 9px 3px 3px;background:linear-gradient(180deg,var(--accent),#6FA8FF);height:6px;transition:height .9s cubic-bezier(.22,.8,.26,1)}
+.sheets{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}.sheets span{background:var(--card);border:1px solid var(--line);padding:7px 13px;border-radius:9px;font-size:16px;font-weight:600}
+.pill{display:inline-block;background:var(--okbg);color:var(--ok);font-weight:800;font-size:18px;padding:8px 16px;border-radius:99px}
+/* scene 6 */
+.price{font-size:190px;font-weight:800;letter-spacing:-.06em;color:var(--accent);line-height:1}
+.bul{margin-top:20px;display:grid;gap:12px;font-size:26px;font-weight:600}.bul div:before{content:"";display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--accent);margin-right:14px}
+/* scene 7 */
+.logo{font-size:104px;font-weight:800;letter-spacing:-.05em}.logo span{color:var(--accent)}
+.prog{position:absolute;left:0;bottom:0;height:6px;background:var(--accent);width:0}
+</style></head><body>
+<div id="s1" class="scene bg1"><div class="row"><div><p class="kick">Lending teams</p><h1>Reading bank statements by hand is <mark>slow and easy to get wrong.</mark></h1><p class="sub">Different banks, different layouts, locked PDFs, and a decision waiting on the numbers.</p></div>
+<div class="stack" id="stack"></div></div></div>
+
+<div id="s2" class="scene bg2"><div class="row"><div><p class="kick">Step 1</p><h2>Sign in with your email. Upload the PDF.</h2><p class="sub">Add the password. Confirm the account holder has consented.</p></div>
+<div class="card" style="padding:30px"><div class="drop"><div class="file">📄 bank_statement.pdf</div></div>
+<div class="field"><span style="color:var(--muted)">PDF password</span><b id="pw"></b></div>
+<div class="chk"><div class="box" id="cb"></div>Account holder has consented to this upload</div></div></div></div>
+
+<div id="s3" class="scene bg1"><div class="row"><div><p class="kick">Step 2</p><h2>Checked <mark>before</mark> you pay.</h2><p class="sub">Thirteen checks catch scans, wrong passwords and broken files. Failed uploads are never charged.</p></div>
+<div class="checks" id="checks"></div></div></div>
+
+<div id="s4" class="scene bg2"><p class="kick">Step 3</p><div class="big" id="cnt">0</div><h2 style="margin-top:6px">metrics computed from every transaction</h2>
+<div class="bar"><i id="pbar"></i></div>
+<div class="tags"><span>Reversals netted</span><span>Bounces flagged</span><span>Counterparties</span><span>Reconciled to the bank's summary</span></div></div>
+
+<div id="s5" class="scene bg1"><div class="row"><div><p class="kick">Step 4</p><h2>A dashboard and an Excel report.</h2><p class="sub">Risk score, flags and eight sheets, ready to open.</p><div class="sheets"><span>Dashboard</span><span>Monthly</span><span>Totals</span><span>Transactions</span><span>Parties</span><span>Flags</span><span>+2</span></div></div>
+<div class="card dash pop" id="dash"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><b style="font-size:22px">Sample report · illustrative</b><span class="pill">Risk: Low</span></div>
+<div class="kp"><div><small>Avg monthly credits</small><b>₹8.42 L</b></div><div><small>Avg balance</small><b>₹3.1 L</b></div><div><small>Bounces</small><b>2</b></div></div>
+<div class="bars" id="bars"></div></div></div></div>
+
+<div id="s6" class="scene bg2"><p class="kick">Pricing</p><div class="price">₹50</div><h2 style="margin-top:4px">per finished report</h2>
+<div class="bul"><div>Packs from ₹250 for 5 reports. Wallet money is not refundable.</div><div>Nothing charged if the upload fails</div><div>Same file again within 30 days is free</div></div></div>
+
+<div id="s7" class="scene bg1" style="align-items:center;text-align:center"><div class="logo">Banks<span>View</span></div><p class="sub" style="max-width:none">Bank statement analysis for lending teams.</p></div>
+<div class="prog" id="prog"></div>
+<script>
+const $=id=>document.getElementById(id);
+const T=[0,6,12.5,19,26,33,39.5,44];           // scene start times; total 44s
+const sc=[1,2,3,4,5,6,7].map(n=>$('s'+n));
+// build bits
+for(let i=0;i<3;i++){const d=document.createElement('div');d.className='pdf';d.style.left=(30+i*70)+'px';d.style.top=(20+i*34)+'px';d.style.transform='rotate('+(i*6-6)+'deg)';d.innerHTML='<b>Statement '+(i+1)+'</b><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>';$('stack').appendChild(d)}
+const labels=['Genuine account statement','Password accepted','Readable and complete','Every running balance reconciles','Totals match the bank\'s summary'];
+labels.forEach(l=>{const d=document.createElement('div');d.className='ck';d.innerHTML='<span class="d">✓</span>'+l;$('checks').appendChild(d)});
+[40,62,50,82,70,94,76].forEach(h=>{const i=document.createElement('i');i.dataset.h=h;$('bars').appendChild(i)});
+let t0=performance.now(),cur=-1;
+function frame(now){const t=(now-t0)/1000;
+ let k=0;while(k<6&&t>=T[k+1])k++;
+ if(k!==cur){sc.forEach((s,i)=>s.classList.toggle('on',i===k));cur=k}
+ const L=t-T[k];
+ if(k===1){$('pw').textContent='•'.repeat(Math.min(8,Math.max(0,Math.floor((L-1)*5))));$('cb').classList.toggle('on',L>3.6);$('cb').textContent=L>3.6?'✓':''}
+ if(k===2){[...$('checks').children].forEach((c,i)=>c.classList.toggle('on',L>1+i*0.9))}
+ if(k===3){const p=Math.min(1,Math.max(0,(L-.4)/4.2));$('cnt').textContent=Math.round(141*(1-Math.pow(1-p,3)));$('pbar').style.width=(p*100)+'%'}
+ if(k===4){$('dash').classList.toggle('on',L>.5);[...$('bars').children].forEach((b,i)=>{b.style.height=(L>1+i*.15?b.dataset.h+'%':'6px')})}
+ $('prog').style.width=(t/T[7]*100)+'%';
+ window.__t=t;
+ if(t<T[7]+1)requestAnimationFrame(frame);else window.__done=true}
+requestAnimationFrame(frame);
+</script></body></html>

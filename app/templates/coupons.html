@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Coupons | {{ BRAND }}{% endblock %}
+{% block body %}
+<h1>Coupons</h1><p class="sub">Only master accounts can create coupons. A coupon takes a percentage off one wallet top-up per customer; the wallet is still credited in full.</p>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+{% if request.query_params.get('new') %}<div class="banner ok">Coupon created: <b>{{ request.query_params.get('new') }}</b></div>{% endif %}
+<div class="card"><h2>New coupon</h2>
+ <form method="post" action="/admin/coupons"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="grid g3">
+   <div class="field"><label>Code (blank = generate)</label><input type="text" name="code" maxlength="24" placeholder="BVWELCOME"></div>
+   <div class="field"><label>Discount %</label><input type="number" name="percent" min="1" max="100" placeholder="Default {{ default_percent }}"></div>
+   <div class="field"><label>Max redemptions (blank = unlimited)</label><input type="number" name="max_redemptions" min="1"></div>
+   <div class="field"><label>Valid for days (blank = no expiry)</label><input type="number" name="days_valid" min="1"></div>
+   <div class="field"><label>Note</label><input type="text" name="note" maxlength="80" placeholder="Who or what it is for"></div>
+  </div>
+  <button class="btn">Create coupon</button></form></div>
+<div class="card"><h2>All coupons</h2>
+{% if rows %}<div class="tablewrap"><table><tr><th>Code</th><th class="n">Off</th><th class="n">Used</th><th>Expires</th><th>Note</th><th>Status</th><th></th></tr>
+{% for c in rows %}<tr><td><b>{{ c.code }}</b></td><td class="n">{{ c.percent }}%</td><td class="n">{{ c.redeemed }}{% if c.max_redemptions %} / {{ c.max_redemptions }}{% endif %}</td><td>{{ c.expires_at[:10] if c.expires_at else 'Never' }}</td><td>{{ c.note or '' }}</td>
+<td>{{ 'Active' if c.active else 'Off' }}</td>
+<td><form method="post" action="/admin/coupons/{{ c.code }}/toggle"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="active" value="{{ 0 if c.active else 1 }}"><button class="btn ghost small">{{ 'Turn off' if c.active else 'Turn on' }}</button></form></td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No coupons yet.</p>{% endif %}</div>
+{% endblock %}

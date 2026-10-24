@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Grievance | {{ BRAND }}{% endblock %}
+{% block body %}
+<article class="doc">
+<p class="lp-kicker">Contact</p>
+<h1>Grievance and data requests</h1>
+<p class="sub">Use this contact for complaints, privacy requests, security reports and wallet questions.</p>
+{% if GRIEVANCE_OFFICER or COMPANY_NAME or COMPANY_ADDRESS or GRIEVANCE_EMAIL %}<div class="card">
+<p>{% if GRIEVANCE_OFFICER %}<b>{{ GRIEVANCE_OFFICER }}</b><br>{% endif %}{% if COMPANY_NAME %}{{ COMPANY_NAME }}{% endif %}{% if COMPANY_ADDRESS %}<br>{{ COMPANY_ADDRESS }}{% endif %}</p>
+{% if GRIEVANCE_EMAIL %}<p>Email: <a href="mailto:{{ GRIEVANCE_EMAIL }}">{{ GRIEVANCE_EMAIL }}</a></p>{% endif %}
+</div>{% endif %}
+
+<h2>What to include</h2>
+<ul><li>The email on your account and, for a report, its report ID.</li><li>What you want us to do: correct, delete or explain. Wallet money is not refundable, but a report charged in error is corrected.</li></ul>
+<p>We acknowledge your request and respond within the period required by applicable law.</p>
+</article>
+{% endblock %}

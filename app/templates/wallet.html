@@ -1,0 +1,50 @@
+{% extends "base.html" %}{% block title %}Wallet | {{ BRAND }}{% endblock %}
+{% block body %}
+<h1>Wallet</h1><p class="sub">Choose a pack. Each report costs {{ PRICE }}.</p>
+{% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+<div class="pg" id="co">
+  <aside class="pg-sum">
+    <div class="pg-merch"><span class="pg-logo">{{ BRAND_HEAD }}<i>{{ BRAND_TAIL }}</i></span><small>Your wallet</small></div>
+    <div class="pg-amt"><small>Available balance</small><strong>{{ user.balance_paise | paise }}</strong></div>
+    <p class="pg-note" style="margin-top:-8px">Enough for <b>{{ reports_possible }}</b> report{{ '' if reports_possible==1 else 's' }}.{% if user.held_paise %} {{ user.held_paise | paise }} is reserved for reports in progress.{% endif %}</p>
+    <dl class="pg-lines" aria-live="polite">
+      <div><dt>Your choice</dt><dd id="sName">&mdash;</dd></div>
+      <div><dt>Reports</dt><dd id="sRep">&mdash;</dd></div>
+      <div class="tot"><dt>You pay</dt><dd id="sPay">&mdash;</dd></div>
+    </dl>
+    <p class="pg-ref" style="word-break:normal">Wallet money is not refundable. Failed uploads are never charged.</p>
+  </aside>
+
+  <section class="pg-pay">
+    <h1>Choose your pack</h1><p class="sub">Pick one option, then pay.</p>
+    <form method="post" action="/wallet/topup" id="tf"><input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="pg-packs" role="radiogroup" aria-label="Payment options">
+      {% for k in packs %}
+        <label class="pg-pack{{ ' off' if not k.available else '' }}">
+          <input type="radio" name="pack" value="{{ k.id }}" data-name="{{ k.name }}" data-pay="{{ k.paise | paise }}" data-rep="{{ k.reports }}" {{ '' if k.available else 'disabled' }} required>
+          <span class="pk-main"><b>{{ k.name }}</b>
+            <small>{% if k.first_only %}{% if k.available %}One time only, for your first report{% else %}Used or no longer available{% endif %}{% else %}{{ (k.paise // k.reports) | paise }} per report{% endif %}</small></span>
+          <span class="pk-side"><strong>{{ k.paise | paise }}</strong><small>{{ k.reports }} report{{ '' if k.reports==1 else 's' }}</small></span>
+        </label>
+      {% endfor %}
+      </div>
+      <button class="btn big pg-cta" id="go" disabled>Choose a pack</button>
+    </form>
+    {% if PAYMENT_MODE == 'mock' %}<p class="hint" style="margin-top:10px">Test mode: payments are simulated and no real money moves.</p>{% endif %}
+    <div class="pg-trust"><span>Encrypted connection</span><span>Pay by UPI, cards or net banking</span><span>Receipt in your transaction list</span></div>
+  </section>
+</div>
+<script>
+(function(){var r=document.querySelectorAll('.pg-pack input'),go=document.getElementById('go');
+ function sel(){var c=document.querySelector('.pg-pack input:checked');r.forEach(function(i){i.parentNode.classList.toggle('on',i.checked)});
+  if(!c){document.getElementById('sName').textContent='\u2014';document.getElementById('sRep').textContent='\u2014';document.getElementById('sPay').textContent='\u2014';go.disabled=true;go.textContent='Choose a pack';return}
+  document.getElementById('sName').textContent=c.dataset.name;document.getElementById('sRep').textContent=c.dataset.rep;document.getElementById('sPay').textContent=c.dataset.pay;
+  go.disabled=false;go.textContent='Continue to pay '+c.dataset.pay}
+ r.forEach(function(i){i.addEventListener('change',sel)});sel()})();
+</script>
+<div class="card"><h2>Transactions</h2>
+{% if history %}<div class="tablewrap"><table><tr><th>Date</th><th>Description</th><th class="n">Amount</th><th class="n">Balance after</th></tr>
+ {% for h in history %}<tr><td>{{ h.created_at[:16] }}</td><td>{{ h.note }}{% if h.kind=='charge' %} <span class="muted">({{ h.ref }})</span>{% endif %}</td>
+  <td class="n" style="color:var(--{{ 'ok' if h.kind=='topup' else 'ink' }})">{{ '+' if h.kind in ('topup',) else '-' }}{{ h.amount_paise | paise }}</td><td class="n">{{ h.balance_after_paise | paise }}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No wallet activity yet.</p>{% endif %}</div>
+{% endblock %}

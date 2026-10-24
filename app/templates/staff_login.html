@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Staff sign in | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="auth card">
+  <h1>Staff sign in</h1><p class="sub">For {{ BRAND }} staff and test accounts. Customers sign in with an emailed code.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  <form method="post" action="/staff/login">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label>Email</label><input type="email" name="email" value="{{ email }}" required autocomplete="email"></div>
+    <div class="field"><label>Password</label><input type="password" name="password" required autocomplete="current-password"></div>
+    <button class="btn" style="width:100%">Sign in</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Payments | {{ BRAND }}{% endblock %}
+{% block body %}
+<h1>UPI payments to confirm</h1><p class="sub">Approve only after you see the exact amount with the same 12-digit reference in your bank statement. Approving credits the customer's wallet.</p>
+<div class="card">
+{% if rows %}<div class="tablewrap"><table><tr><th>Order</th><th>Customer</th><th class="n">Amount</th><th class="n">Wallet credit</th><th>UTR</th><th>Coupon</th><th></th></tr>
+{% for r in rows %}<tr><td>{{ r.order_id }}</td><td>{{ r.name }}<br><span class="muted">{{ r.email }}</span></td><td class="n">{{ r.amount_paise | paise }}</td><td class="n">{{ (r.credit_paise or r.amount_paise) | paise }}</td><td>{{ r.payment_id }}</td><td>{{ r.coupon_code or '' }}</td>
+<td style="white-space:nowrap">{% for a,l in (('approve','Approve'),('reject','Reject')) %}<form method="post" action="/admin/payments/{{ r.order_id }}/{{ a }}" style="display:inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn {{ '' if a=='approve' else 'ghost' }} small">{{ l }}</button></form> {% endfor %}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">Nothing waiting.</p>{% endif %}</div>
+{% endblock %}

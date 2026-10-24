@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Verification code | {{ BRAND }}{% endblock %}
+{% block body %}
+<div class="auth card">
+  <h1>Enter your verification code</h1><p class="sub">Open your authenticator app and type the current 6-digit code for {{ BRAND }}.</p>
+  {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+  <form method="post" action="/mfa">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label>6-digit code</label><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required autofocus></div>
+    <button class="btn" style="width:100%">Verify and sign in</button>
+  </form>
+</div>
+{% endblock %}

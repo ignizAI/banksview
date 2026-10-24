@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}{{ BRAND }}{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/style.css?v={{ ASSET_V }}">
+</head><body class="{% block bodyclass %}{% endblock %}">
+<header class="top"><div class="wrap">
+  <a class="brand" href="/">{{ BRAND_HEAD }}<span>{{ BRAND_TAIL }}</span></a>
+  <nav>
+  {% if user %}
+    <a href="/dashboard">Reports</a>{% if user.master %}<a href="/admin/users">Users</a>{% if COUPONS_ENABLED %}<a href="/admin/coupons">Coupons</a>{% endif %}<a href="/admin/payments">Payments</a><a href="/admin/audit">Audit</a>{% endif %}
+    {% if user.master %}<a class="chip" href="/wallet" title="Reports are free on this account. Open the wallet to test top-ups">Master · free</a>{% else %}<a class="chip" href="/wallet" title="Wallet balance">{{ user.balance_paise | paise }}</a>{% endif %}
+    <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn ghost small">Sign out</button></form>
+  {% else %}
+    {% block navlinks %}{% endblock %}<a href="/login">Sign in</a><a class="btn small" href="/signup">Get started</a>
+  {% endif %}
+  </nav>
+</div></header>
+<main><div class="wrap">
+{% if flash %}<div class="banner {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}
+{% block body %}{% endblock %}
+</div></main>
+<footer><div class="wrap">
+  <div class="foot-cols">
+    <div><a class="brand" href="/">{{ BRAND_HEAD }}<span>{{ BRAND_TAIL }}</span></a><p class="foot-tag">Bank statement analysis for lending teams.</p></div>
+    <div><h4>Product</h4><a href="/#how">How it works</a><a href="/#pricing">Pricing</a><a href="/banks">Supported banks</a></div>
+    <div><h4>Trust</h4><a href="/security">Security</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Use</a></div>
+    <div><h4>Help</h4><a href="/grievance">Grievance officer</a><a href="/#faq">Questions</a><a href="/login">Sign in</a></div>
+  </div>
+  <p>{{ BRAND }} is a software platform. It reads the PDF you upload and computes figures from it. It does not verify the statement with the bank, is not a lender or a credit bureau, and its reports are decision support, not a credit decision. Users are responsible for obtaining the account holder's consent and for the decisions they take. Wallet money is not refundable.</p>
+  <div class="foot-bar"><span class="powered">Powered by <b>IgnizAI</b></span></div>
+</div></footer>
+</body></html>

@@ -1,0 +1,70 @@
+{% extends "base.html" %}{% block title %}Secure payment | {{ BRAND }}{% endblock %}
+{% block body %}
+{% set credit = p.credit_paise or p.amount_paise %}{% set off = credit - p.amount_paise %}
+<div class="pg">
+  <aside class="pg-sum">
+    <a class="pg-back" href="/wallet">&larr; Back to wallet</a>
+    <div class="pg-merch"><span class="pg-logo">{{ BRAND_HEAD }}<i>{{ BRAND_TAIL }}</i></span><small>Wallet top-up</small></div>
+    <div class="pg-amt"><small>Amount to pay</small><strong>{{ p.amount_paise | paise }}</strong></div>
+    <dl class="pg-lines">
+      <div><dt>Wallet credit</dt><dd>{{ credit | paise }}</dd></div>
+      {% if off > 0 %}<div class="disc"><dt>Coupon {{ p.coupon_code }}</dt><dd>&minus; {{ off | paise }}</dd></div>{% endif %}
+      <div class="tot"><dt>You pay</dt><dd>{{ p.amount_paise | paise }}</dd></div>
+    </dl>
+    <p class="pg-note">Buys about <b>{{ credit // user.price }}</b> report{{ '' if credit // user.price == 1 else 's' }} at {{ user.price | paise }} each. Wallet money is not refundable.</p>
+    <p class="pg-ref">Order <code>{{ p.order_id }}</code><br>{{ user.email }}</p>
+  </aside>
+
+  <section class="pg-pay">
+    {% if provider == 'mock' %}
+      <h1>Complete payment</h1>
+      <div class="banner warn"><b>Test mode</b>This is a simulated checkout. Nothing is charged.</div>
+      <form method="post" action="/pay/{{ p.order_id }}/mock"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn big pg-cta">Simulate payment of {{ p.amount_paise | paise }}</button></form>
+
+    {% elif provider == 'upi' %}
+      <h1>Pay with UPI</h1><p class="sub">Three steps. Your wallet is credited once we confirm the payment.</p>
+      {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+      <ol class="pg-steps">
+        <li class="on"><b>1</b>Scan &amp; pay</li><li><b>2</b>Enter reference</li><li><b>3</b>Wallet credited</li>
+      </ol>
+      <div class="pg-upi">
+        <div class="pg-qr"><span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span><div class="pg-qrbox">{{ qr | safe }}</div></div>
+        <div class="pg-how">
+          <div class="pg-exact"><small>Pay exactly</small><strong>{{ p.amount_paise | paise }}</strong></div>
+          <p class="muted" style="margin:6px 0 10px">Open any UPI app, scan the code and confirm. The amount is filled in for you.</p>
+          {% if upi_id %}<div class="pg-vpa"><small>Or pay to UPI ID</small><div><code id="vpa">{{ upi_id }}</code><button type="button" class="pg-copy" id="cp">Copy</button></div></div>{% endif %}
+        </div>
+      </div>
+      <form method="post" action="/pay/{{ p.order_id }}/upi" class="pg-utr"><input type="hidden" name="csrf" value="{{ csrf }}">
+        <label for="utr">UPI reference number (UTR)</label>
+        <input id="utr" type="text" name="utr" inputmode="numeric" maxlength="12" pattern="[0-9]{12}" placeholder="12-digit UTR number" required value="{{ p.payment_id or '' }}" autocomplete="off">
+        <div class="hint">Find it in your UPI app under the payment details, as &ldquo;UPI Ref&rdquo; or &ldquo;UTR&rdquo;.</div>
+        <button class="btn big pg-cta">I have paid {{ p.amount_paise | paise }}</button>
+      </form>
+      <p class="pg-wait">Confirmation usually takes a few hours on working days. You can close this page; your balance updates once confirmed.</p>
+      <script>var c=document.getElementById('cp');if(c)c.onclick=function(){try{navigator.clipboard.writeText(document.getElementById('vpa').textContent);c.textContent='Copied';setTimeout(function(){c.textContent='Copy'},1500)}catch(e){}}</script>
+
+    {% else %}
+      <h1>Pay securely</h1><p class="sub">Choose how to pay on the next screen.</p>
+      <ul class="pg-methods"><li>UPI</li><li>Cards</li><li>Net banking</li><li>Wallets</li></ul>
+      <form method="post" action="/pay/{{ p.order_id }}/razorpay" id="rzp">
+        <input type="hidden" name="razorpay_payment_id" id="pid"><input type="hidden" name="razorpay_signature" id="sig"></form>
+      <button class="btn big pg-cta" id="pay">Pay {{ p.amount_paise | paise }}</button>
+      <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+      <script>
+      var o={key:"{{ key_id }}",amount:{{ p.amount_paise }},currency:"INR",name:"{{ BRAND }}",order_id:"{{ p.order_id }}",
+       prefill:{name:{{ user.name | tojson }},email:{{ user.email | tojson }}},theme:{color:"#1C78FF"},
+       handler:function(r){document.getElementById('pid').value=r.razorpay_payment_id;document.getElementById('sig').value=r.razorpay_signature;document.getElementById('rzp').submit()}};
+      document.getElementById('pay').onclick=function(){new Razorpay(o).open()};
+      </script>
+    {% endif %}
+
+    <div class="pg-trust">
+      <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Encrypted connection</span>
+      <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>{% if provider == 'razorpay' %}Processed by Razorpay{% else %}Amount checked before credit{% endif %}</span>
+      <span>No card or bank details are stored by {{ BRAND }}</span>
+    </div>
+    <p class="muted pg-foot"><a href="/wallet">Cancel</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/privacy">Privacy</a></p>
+  </section>
+</div>
+{% endblock %}
