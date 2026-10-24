@@ -44,6 +44,8 @@ DUPLICATE_WINDOW_DAYS = _int("DUPLICATE_WINDOW_DAYS", 30)
 REPORT_RETENTION_DAYS = _int("REPORT_RETENTION_DAYS", 90)
 
 # --- Sessions ---
+BACKUP_DAILY = os.environ.get("BACKUP_DAILY", "0") == "1"           # in-app daily database backup
+BACKUP_KEEP = _int("BACKUP_KEEP", 14)
 SESSION_DAYS = _int("SESSION_DAYS", 7)
 SESSION_IDLE_MINUTES = _int("SESSION_IDLE_MINUTES", 30)     # an unattended screen signs itself out
 ALLOWED_HOSTS = [h.strip().lower() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]

@@ -29,12 +29,32 @@ async def lifespan(app):
     init_db()
     recover_stuck()
     cleanup_expired()
+    if config.BACKUP_DAILY:
+        from . import backup
+        backup.start_daily()
     yield
 
 
 app = FastAPI(title=config.BRAND, lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=config.ALLOWED_HOSTS)    # a forged Host header (used for phishing links in emails) is refused
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=config.ALLOWED_HOSTS)
+
+
+class _HealthFirst:
+    """The host's health checker calls /health with an internal Host header; answer it before the host check so the machine is not marked down."""
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"] == "/health":
+            body = b'{"status":"ok"}'
+            await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode()), (b"cache-control", b"no-store")]})
+            await send({"type": "http.response.body", "body": body})
+            return
+        await self.inner(scope, receive, send)
+
+
+app.add_middleware(_HealthFirst)    # a forged Host header (used for phishing links in emails) is refused
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 templates.env.globals["ASSET_V"] = int((APP_DIR / "static" / "style.css").stat().st_mtime)   # new CSS is fetched after every deploy, never served stale from the browser cache

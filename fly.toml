@@ -1,0 +1,33 @@
+# Fly.io deployment. Change `app` to a name nobody else has taken (for example banksview-ig).
+app = "banksview"
+primary_region = "bom"                 # Mumbai: customer data stays in India
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  APP_ENV = "production"
+  DATA_DIR = "/data"
+  BACKUP_DAILY = "1"
+
+[[mounts]]
+  source = "banksview_data"            # persistent disk: database, reports, backups
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "off"           # a wallet product must not sleep
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

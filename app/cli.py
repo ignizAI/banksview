@@ -1,4 +1,4 @@
-"""Admin commands:  python -m app.cli credit user@example.com 500   |  master user@example.com PASSWORD [revoke]  |  coupon MASTER_EMAIL [CODE] [PERCENT]  |  users  |  audit  |  cleanup"""
+"""Admin commands:  python -m app.cli credit user@example.com 500   |  master user@example.com PASSWORD [revoke]  |  coupon MASTER_EMAIL [CODE] [PERCENT]  |  users  |  audit  |  backup  |  cleanup"""
 from __future__ import annotations
 import sys
 
@@ -55,6 +55,9 @@ def main(argv):
         except coupons.CouponError as e:
             print(e)
             return 1
+    elif cmd == "backup":     # python -m app.cli backup
+        from . import backup
+        print(backup.make_backup())
     elif cmd == "audit":      # python -m app.cli audit   (exit code 2 if any wallet fails its integrity check)
         problems = wallet.verify_ledger()
         print("\n".join(problems) if problems else "All wallets match their history.")

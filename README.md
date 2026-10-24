@@ -1,11 +1,13 @@
 # BanksView - bank statement analysis for DSAs and small NBFCs
 
-Upload a PDF bank statement (with its password) -> validated -> ~138 metrics, flags and a downloadable Excel dashboard. Rs 75 per report from a prepaid wallet (minimum top-up Rs 1,000).
+Upload a PDF bank statement (with its password) -> validated -> 141 metrics, flags and a downloadable Excel dashboard. Prepaid wallet: Rs 50 per report, bought in fixed packs (Rs 50 first report once, Rs 250 for 5, Rs 1,000 for 20, Rs 5,000 for 100).
 
-## Run locally (Python 3.9 or newer; tested on 3.9 and 3.13)
+## Run locally (Python 3.9 or newer; tested on 3.13)
     pip install -r requirements-dev.txt
-    uvicorn app.main:app --reload          # http://localhost:8000, mock payments, data in ./data
-    pytest tests                           # 30 tests, about 1 minute
+    uvicorn app.main:app --reload          # http://localhost:8000, test payments, sign-in code shown on screen, data in ./data
+    pytest tests                           # about 2 minutes
+
+Deploying: see docs/DEPLOY.md (Fly.io, Mumbai). It does not run on Vercel: it needs a persistent disk.
 
 ## What it does
 - Sign-up for lenders, agents and DSAs; PBKDF2 passwords, signed cookies, CSRF, login throttling.
@@ -14,16 +16,10 @@ Upload a PDF bank statement (with its password) -> validated -> ~138 metrics, fl
 - Report: 117 metrics per month plus total, 21 statement-level metrics, risk flags and score, counterparties, recurring debits, round-trip detection. Excel sheets: Summary (KPIs and 4 charts), Metrics, Transactions, Daily Balances, Counterparties, Flags & Patterns, Data Dictionary.
 - Reversals (for example rejected cheques credited back) are removed from income; there is one definition of average balance; totals are recomputed from transactions.
 
-## Go live (single VPS or container)
-    docker build -t banksview .
-    docker run -d -p 8000:8000 -v banksview-data:/data --env-file .env banksview
-Put it behind HTTPS (Caddy or nginx). Keep one worker (SQLite and in-memory throttles); move to Postgres and Redis before scaling out.
-1. Create a Razorpay account; set RAZORPAY_KEY_ID and KEY_SECRET, PAYMENT_MODE=razorpay.
-2. Add a webhook to https://your-domain/webhooks/razorpay for payment.captured and set RAZORPAY_WEBHOOK_SECRET.
-3. Test a real Rs 1,000 payment end to end. The Razorpay path follows their documented API but was NOT tested against live keys.
-4. Back up /data/app.db daily.
+## Go live
+Follow docs/DEPLOY.md. Keep one worker (SQLite and in-memory throttles); move to Postgres and Redis before scaling out.
 
-Admin: `python -m app.cli credit user@x.com 500` | `users` | `cleanup`
+Admin: `python -m app.cli credit user@x.com 500` | `users` | `audit` | `backup` | `cleanup`
 
 ## Known limits
 - Digital (text) PDFs only; scans are rejected, there is no OCR. The parser is tested on four layout families plus one real-world sample, not on every bank. Add failing bank PDFs to tests as you meet them.

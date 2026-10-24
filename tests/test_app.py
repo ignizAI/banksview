@@ -1232,3 +1232,25 @@ def test_audit_pages_are_master_only_and_clean(client):
     assert a.status_code == 200 and "All clear" in a.text
     h = client.get(f"/admin/users/{uid}/wallet")
     assert h.status_code == 200 and "Wallet top-up" in h.text and "intact" in h.text
+
+
+def test_backup_is_consistent_and_rotates(client, monkeypatch):
+    import sqlite3
+    from app import backup
+    _signed_in(client)
+    add_money(client, 250)
+    monkeypatch.setattr(config, "BACKUP_KEEP", 2)
+    paths = []
+    for i in range(3):
+        paths.append(backup.make_backup())
+        import time; time.sleep(1.1)
+    left = sorted((config.DATA_DIR / "backups").glob("app-*.db"))
+    assert len(left) == 2
+    c = sqlite3.connect(str(left[-1]))
+    assert c.execute("SELECT balance_paise FROM users").fetchone()[0] == 25000
+    assert c.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+
+def test_health_check_works_with_an_internal_host_header(client):
+    assert client.get("/health", headers={"host": "172.19.0.5:8000"}).status_code == 200
+    assert client.get("/", headers={"host": "172.19.0.5:8000"}).status_code == 400
