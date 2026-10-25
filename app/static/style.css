@@ -396,21 +396,13 @@ footer .powered{font-size:12.5px;color:var(--muted)}footer .powered b{color:var(
 .lp-hero{min-height:calc(100vh - 100px);min-height:calc(100svh - 100px)}   /* 60px sticky header + 20px main padding + 20px breathing room */
 .lp-sec#video{min-height:calc(100vh - 60px);min-height:calc(100svh - 60px);display:flex;flex-direction:column;justify-content:center;padding-bottom:40px;scroll-margin-top:60px}
 
-/* ---- banking-icon watermark: many tiny icons, only in the empty side margins (never over content), faint, drifting ---- */
-.wm{--cw:1040px;position:fixed;left:0;right:0;top:-100px;bottom:-100px;z-index:1;pointer-events:none;overflow:hidden;color:var(--accent)}
-.lp .wm{--cw:1140px}                                     /* = max width of the page column (.wrap) */
-.wm-c{position:absolute;top:0;bottom:0;width:calc((100% - var(--cw))/2)}   /* one column per side margin */
-.wm-l{left:0}.wm-r{right:0}
-.wm i{--s:18px;--o:.2;--r:0deg;--t:22s;--d:0s;--dx:4px;--dy:-10px;position:absolute;left:var(--x);top:var(--y);width:min(var(--s),calc(100% - var(--x) - 8px));aspect-ratio:1;opacity:var(--o);transform:rotate(var(--r));animation:wm-float var(--t) ease-in-out var(--d) infinite alternate}
-.wm i svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.wm i:nth-child(3n+1){--s:15px}.wm i:nth-child(3n){--s:21px}
-.wm i:nth-child(4n+1){--t:22s}.wm i:nth-child(4n+2){--t:27s}.wm i:nth-child(4n+3){--t:19s}.wm i:nth-child(4n){--t:30s}
-.wm i:nth-child(5n+1){--d:-3s}.wm i:nth-child(5n+2){--d:-8s}.wm i:nth-child(5n+3){--d:-12s}.wm i:nth-child(5n+4){--d:-16s}
-.wm i:nth-child(6n+1){--r:-12deg}.wm i:nth-child(6n+2){--r:8deg}.wm i:nth-child(6n+3){--r:-5deg}.wm i:nth-child(6n+4){--r:14deg}.wm i:nth-child(6n+5){--r:-9deg}
-.wm i:nth-child(odd){--dx:-4px}.wm i:nth-child(3n){--dy:-14px}.wm i:nth-child(5n){--o:.15}.wm i:nth-child(7n){--o:.26}
+/* ---- banking-icon watermark: small icons scattered through the free space (side margins and gaps between sections);
+        never over content, never in the footer. Positions come from the script at the end of base.html. ---- */
+.wm{position:absolute;left:0;right:0;top:0;height:0;z-index:1;pointer-events:none;overflow:hidden;color:var(--accent)}
+.wm-box{position:absolute;inset:0}
+.wm i{--o:.2;--r:0deg;--dx:4px;--dy:-10px;--t:22s;--d:0s;position:absolute;opacity:var(--o);transform:rotate(var(--r))}
+.wm i.live{animation:wm-float var(--t) ease-in-out var(--d) infinite alternate}   /* only icons near the viewport animate */
+.wm i svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 @keyframes wm-float{from{transform:translate3d(0,0,0) rotate(var(--r))}to{transform:translate3d(var(--dx),var(--dy),0) rotate(calc(var(--r) + 10deg))}}
-@keyframes wm-par{to{transform:translateY(-100px)}}
-@supports(animation-timeline:scroll()){.wm{animation:wm-par linear both;animation-timeline:scroll(root)}}   /* whole layer also drifts slowly as the page scrolls */
-@media(max-width:1319px){.wm{display:none}}                /* no empty margin wide enough for icons: show none rather than overlap content */
-@media(prefers-reduced-motion:reduce){.wm,.wm i{animation:none!important}}
+@media(prefers-reduced-motion:reduce){.wm i{animation:none!important}}
 @media print{.wm{display:none}}
