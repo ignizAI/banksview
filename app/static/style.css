@@ -396,13 +396,16 @@ footer .powered{font-size:12.5px;color:var(--muted)}footer .powered b{color:var(
 .lp-hero{min-height:calc(100vh - 100px);min-height:calc(100svh - 100px)}   /* 60px sticky header + 20px main padding + 20px breathing room */
 .lp-sec#video{min-height:calc(100vh - 60px);min-height:calc(100svh - 60px);display:flex;flex-direction:column;justify-content:center;padding-bottom:40px;scroll-margin-top:60px}
 
-/* ---- banking-icon watermark: faint, fixed, drifting ---- */
-.wm{position:fixed;left:0;right:0;top:-100px;bottom:-100px;z-index:5;pointer-events:none;overflow:hidden;mix-blend-mode:multiply;color:var(--accent)}
-.wm i{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);opacity:var(--o,.1);transform:rotate(var(--r,0deg));animation:wm-float var(--t,22s) ease-in-out var(--d,0s) infinite alternate;will-change:transform}
+/* ---- banking-icon watermark: only in the empty side margins (never over content), faint, drifting ---- */
+.wm{--cw:1040px;position:fixed;left:0;right:0;top:-100px;bottom:-100px;z-index:1;pointer-events:none;overflow:hidden;color:var(--accent)}
+.lp .wm{--cw:1140px}                                     /* = max width of the page column (.wrap) */
+.wm-c{position:absolute;top:0;bottom:0;width:calc((100% - var(--cw))/2)}   /* one column per side margin */
+.wm-l{left:0}.wm-r{right:0}
+.wm i{position:absolute;left:var(--x);top:var(--y);width:min(var(--s),calc(100% - var(--x) - 16px));aspect-ratio:1;opacity:calc(var(--o,.1)*1.25);transform:rotate(var(--r,0deg));animation:wm-float var(--t,22s) ease-in-out var(--d,0s) infinite alternate;will-change:transform}
 .wm i svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
-@keyframes wm-float{from{transform:translate3d(0,0,0) rotate(var(--r,0deg))}to{transform:translate3d(var(--dx,14px),var(--dy,-26px),0) rotate(calc(var(--r,0deg) + 9deg))}}
+@keyframes wm-float{from{transform:translate3d(0,0,0) rotate(var(--r,0deg))}to{transform:translate3d(var(--dx,8px),var(--dy,-20px),0) rotate(calc(var(--r,0deg) + 9deg))}}
 @keyframes wm-par{to{transform:translateY(-100px)}}
 @supports(animation-timeline:scroll()){.wm{animation:wm-par linear both;animation-timeline:scroll(root)}}   /* whole layer also drifts slowly as the page scrolls */
-@media(max-width:640px){.wm i:nth-child(n+11){display:none}.wm i{width:calc(var(--s)*.72);height:calc(var(--s)*.72)}}
+@media(max-width:1319px){.wm{display:none}}                /* no empty margin wide enough for icons: show none rather than overlap content */
 @media(prefers-reduced-motion:reduce){.wm,.wm i{animation:none!important}}
 @media print{.wm{display:none}}
