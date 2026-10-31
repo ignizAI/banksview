@@ -58,7 +58,7 @@ def test_customer_cookie_cannot_be_replayed_as_admin_cookie(client):
 def test_master_test_account_is_not_an_admin(client):
     make_admin("tester@example.com", ADMIN_PW, admin=False)
     r = admin_login(client, "tester@example.com")
-    assert r.status_code == 401 and "Incorrect username, password or code" in r.text
+    assert r.status_code == 401 and "Incorrect username or password" in r.text
 
 
 def test_admin_cannot_use_customer_pages_through_admin_cookie(admin):
@@ -98,57 +98,16 @@ def test_sign_in_is_throttled(client):
     assert admin_login(client).status_code == 429          # even the right password waits
 
 
-def test_authenticator_code_is_required_when_enrolled(client):
-    from app import security
-    from app.db import tx
+def test_sign_in_is_username_and_password_only(client, monkeypatch):
+    from app import config
     make_admin()
-    secret = security.new_totp_secret() if hasattr(security, "new_totp_secret") else "JBSWY3DPEHPK3PXP"
-    with tx() as c:
-        c.execute("UPDATE users SET mfa_secret=?, mfa_enabled=1 WHERE email=?", (secret, ADMIN_EMAIL))
-    assert admin_login(client).status_code == 401
-    assert admin_login(client, code="000000").status_code == 401
-    now = time.time()
-    # compute the current code the same way the app verifies it
-    import base64, hashlib, hmac, struct
-    key = base64.b32decode(secret.upper() + "=" * (-len(secret) % 8))
-    h = hmac.new(key, struct.pack(">Q", int(now // 30)), hashlib.sha1).digest()
-    o = h[-1] & 15
-    code = f"{(struct.unpack('>I', h[o:o + 4])[0] & 0x7fffffff) % 1000000:06d}"
-    assert admin_login(client, code=code).status_code == 303
-
-
-def test_production_enrols_authenticator_inside_admin_console(client, monkeypatch):
-    """No detour through the tester/staff login: password, then enrol the authenticator, then in."""
-    import base64, hashlib, hmac, struct
-    from app import config, security
-    from app.db import db
-    make_admin()
-    monkeypatch.setattr(config, "MFA_REQUIRED", True)
+    monkeypatch.setattr(config, "MFA_REQUIRED", True)          # the customer-side rule must not leak into the admin console
+    page = client.get("/admin/login")
+    assert "authenticator" not in page.text.lower() and 'name="code"' not in page.text
     r = admin_login(client)
-    assert r.status_code == 303 and r.headers["location"] == "/admin/mfa-setup"
-    assert client.get("/admin", follow_redirects=False).status_code == 303          # not signed in yet
-    page = client.get("/admin/mfa-setup")
-    assert page.status_code == 200 and "staff" not in page.text.lower()
-    with db() as c:
-        secret = c.execute("SELECT mfa_secret FROM users WHERE email=?", (ADMIN_EMAIL,)).fetchone()[0]
-    assert secret and secret.replace(" ", "")[:4] in page.text
-    csrf = csrf_from(page.text)
-    bad = client.post("/admin/mfa-setup", data={"csrf": csrf, "code": "000000"}, follow_redirects=False)
-    assert bad.status_code == 401
-    key = base64.b32decode(secret.upper() + "=" * (-len(secret) % 8))
-    h = hmac.new(key, struct.pack(">Q", int(time.time() // 30)), hashlib.sha1).digest()
-    o = h[-1] & 15
-    code = f"{(struct.unpack('>I', h[o:o + 4])[0] & 0x7fffffff) % 1000000:06d}"
-    ok = client.post("/admin/mfa-setup", data={"csrf": csrf_from(bad.text), "code": code}, follow_redirects=False)
-    assert ok.status_code == 303 and ok.headers["location"] == "/admin"
+    assert r.status_code == 303 and r.headers["location"] == "/admin"
     assert client.get("/admin").status_code == 200
-    with db() as c:
-        assert c.execute("SELECT mfa_enabled FROM users WHERE email=?", (ADMIN_EMAIL,)).fetchone()[0] == 1
-
-
-def test_mfa_setup_page_needs_a_fresh_password_check(client):
-    assert client.get("/admin/mfa-setup", follow_redirects=False).status_code == 303
-    assert client.post("/admin/mfa-setup", data={"csrf": "x", "code": "123456"}, follow_redirects=False).status_code == 303
+    assert client.get("/admin/mfa-setup", follow_redirects=False).status_code == 404
 
 
 def test_logout_kills_the_cookie_everywhere(admin):
