@@ -685,6 +685,11 @@ def report_download(request: Request, rid: str):
         return render(request, "error.html", user, status=404, title="File not available",
                       message=f"Excel files are kept for {config.REPORT_RETENTION_DAYS} days. Upload the statement again to regenerate it.")
     audit(request, user["id"], "download_report", rid)
+    try:
+        with tx() as conn:
+            conn.execute("UPDATE reports SET download_count=download_count+1, last_downloaded_at=datetime('now') WHERE id=? AND user_id=?", (rid, user["id"]))
+    except Exception:       # a counter problem must never block the customer's download
+        pass
     ref = re.sub(r"[^A-Za-z0-9_-]+", "_", r["applicant_ref"] or "") or "report"
     return FileResponse(r["xlsx_path"], filename=f"{config.BRAND}_{ref}_{r['id']}.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -1069,3 +1074,8 @@ def recover_stuck(max_age_minutes: int = 10) -> int:
 @app.exception_handler(404)
 async def not_found(request: Request, exc):
     return render(request, "error.html", current_user(request), status=404, title="Page not found", message="That page does not exist.")
+
+
+# ----------------------------------------------------------------------------- admin console (own sign-in at /admin/login)
+from . import admin_console  # noqa: E402  (registers filters; imported last because it uses helpers defined above)
+app.include_router(admin_console.router)

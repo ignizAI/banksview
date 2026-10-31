@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Admin sign in | {{ BRAND }}</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ ASSET_A }}">
+</head><body class="signin">
+<div class="signbox">
+  <span class="logo">{{ BRAND }}<small>Admin</small></span>
+  <h1>Admin sign in</h1>
+  <p class="sub" style="margin-bottom:16px">Restricted to {{ BRAND }} administrators. Customers sign in on the main site.</p>
+  {% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/admin/login" autocomplete="on">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label for="e">Email</label><input id="e" type="email" name="email" value="{{ email }}" required autocomplete="username" autofocus></div>
+    <div class="field"><label for="p">Password</label><input id="p" type="password" name="password" required autocomplete="current-password"></div>
+    <div class="field"><label for="c">Authenticator code</label><input id="c" type="text" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="8" autocomplete="one-time-code" placeholder="6 digits"><small>Required once the authenticator app is set up on your account.</small></div>
+    <button class="btn primary" style="width:100%">Sign in</button>
+  </form>
+  <p class="fine">Sign-ins and record views are logged. The session ends after {{ ADMIN_IDLE }} idle minutes.</p>
+</div>
+</body></html>

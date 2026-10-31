@@ -1,4 +1,4 @@
-"""Admin commands:  python -m app.cli credit user@example.com 500   |  master user@example.com PASSWORD [revoke]  |  coupon MASTER_EMAIL [CODE] [PERCENT]  |  users  |  audit  |  backup  |  cleanup"""
+"""Admin commands:  python -m app.cli credit user@example.com 500   |  master user@example.com PASSWORD [revoke]  |  admin EMAIL [PASSWORD] [x revoke]  |  coupon MASTER_EMAIL [CODE] [PERCENT]  |  users  |  audit  |  backup  |  cleanup"""
 from __future__ import annotations
 import sys
 
@@ -43,6 +43,38 @@ def main(argv):
                 c.execute("INSERT INTO users(email,password_hash,name,org,role,is_master) VALUES (?,?,?,?,?,1)",
                           (email, security.hash_password(argv[2]), "Master Tester", config.BRAND, "lender"))
                 print("Master account created:", email)
+    elif cmd == "admin" and len(argv) in (2, 3, 4):     # python -m app.cli admin EMAIL [PASSWORD] | admin EMAIL x revoke
+        from . import security
+        email = argv[1].lower()
+        if len(argv) == 4 and argv[3] == "revoke":
+            with db() as c:
+                c.execute("UPDATE users SET is_admin=0, session_epoch=session_epoch+1 WHERE email=?", (email,))
+            print("Admin access removed from", email)
+            return 0
+        with db() as c:
+            u = c.execute("SELECT id, has_password FROM users WHERE email=?", (email,)).fetchone()
+            pw = argv[2] if len(argv) >= 3 else ""
+            if pw and len(pw) < 12:
+                print("An admin password needs at least 12 characters.")
+                return 1
+            if u:
+                if pw:
+                    c.execute("UPDATE users SET is_admin=1, has_password=1, password_hash=?, session_epoch=session_epoch+1 WHERE id=?", (security.hash_password(pw), u["id"]))
+                    print("Existing account promoted to admin and its password set:", email)
+                elif u["has_password"]:
+                    c.execute("UPDATE users SET is_admin=1 WHERE id=?", (u["id"],))
+                    print("Existing account promoted to admin (its password is unchanged):", email)
+                else:
+                    print("This account has no password. Give one:  admin EMAIL PASSWORD")
+                    return 1
+            else:
+                if not pw:
+                    print("New admin needs a password of at least 12 characters:  admin EMAIL PASSWORD")
+                    return 1
+                c.execute("INSERT INTO users(email,password_hash,name,org,role,is_admin) VALUES (?,?,?,?,?,1)",
+                          (email, security.hash_password(pw), "Administrator", config.BRAND, "lender"))
+                print("Admin account created:", email)
+        print("Sign in at /admin/login. Admins see all customer records; keep this list short.")
     elif cmd == "coupon" and len(argv) >= 2:      # python -m app.cli coupon EMAIL_OF_MASTER [CODE] [PERCENT]
         from . import coupons
         with db() as c:

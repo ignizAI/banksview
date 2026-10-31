@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>{% block title %}Console{% endblock %} | {{ BRAND }} admin</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ ASSET_A }}">
+</head><body>
+<header class="bar"><div class="wrap">
+  <a class="logo" href="/admin">{{ BRAND }}<small>Admin</small></a>
+  <nav aria-label="Admin">
+    <a href="/admin" class="{{ 'on' if nav == 'dashboard' }}">Analytics</a>
+    <a href="/admin/customers" class="{{ 'on' if nav == 'customers' }}">Customers</a>
+    <a href="/admin/transactions" class="{{ 'on' if nav == 'transactions' }}">Payments</a>
+    <a href="/admin/reports" class="{{ 'on' if nav == 'reports' }}">Reports &amp; downloads</a>
+    <a href="/admin/data" class="{{ 'on' if nav == 'data' }}">All records</a>
+  </nav>
+  <span class="who">{{ admin.email }}</span>
+  <form method="post" action="/admin/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Sign out</button></form>
+</div></header>
+<main><div class="wrap">
+{% block body %}{% endblock %}
+</div></main>
+</body></html>

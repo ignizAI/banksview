@@ -1,0 +1,29 @@
+{% extends "console_base.html" %}{% from "console_macros.html" import pager, status_pill %}{% block title %}Reports &amp; downloads{% endblock %}
+{% block body %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+  <div><h1>Reports &amp; downloads</h1><p class="sub" style="margin:0">One row per uploaded statement. Borrower names, file names and statement contents are never shown here.</p></div>
+  <a class="btn" href="/admin/export/reports.csv">Download CSV</a>
+</div>
+<section class="kpis">
+  <div class="kpi"><div class="l">Uploaded</div><div class="v">{{ s.up | num }}</div></div>
+  <div class="kpi"><div class="l">Generated</div><div class="v">{{ s.done | num }}</div><div class="d">{{ pct(s.done, s.up) }} of uploads</div></div>
+  <div class="kpi"><div class="l">Failed or rejected</div><div class="v">{{ s.failed | num }}</div></div>
+  <div class="kpi"><div class="l">Reports downloaded</div><div class="v">{{ s.dlr | num }}</div><div class="d">{{ pct(s.dlr, s.done) }} of generated</div></div>
+  <div class="kpi"><div class="l">Total downloads</div><div class="v">{{ s.dl | num }}</div></div>
+</section>
+<form class="filters" method="get" action="/admin/reports">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search customer, bank or report id" aria-label="Search">
+  <select name="status" aria-label="Status"><option value="">All statuses</option>{% for x in ('done','failed','processing') %}<option value="{{ x }}" {{ 'selected' if status == x }}>{{ x }}</option>{% endfor %}</select>
+  <select name="sort" aria-label="Sort"><option value="new" {{ 'selected' if sort != 'downloads' }}>Newest first</option><option value="downloads" {{ 'selected' if sort == 'downloads' }}>Most downloaded</option></select>
+  <label class="chk"><input type="checkbox" name="test" value="1" {{ 'checked' if test }}> Include test accounts</label>
+  <button class="btn">Apply</button>
+</form>
+<div class="card"><div class="tablewrap"><table>
+<tr><th>Uploaded</th><th>Customer</th><th>Status</th><th>Bank</th><th>Account</th><th>Period</th><th class="n">Txns</th><th>Risk</th><th class="n">Charged</th><th class="n">Downloads</th><th>Last download</th></tr>
+{% for r in rows %}<tr><td class="nw">{{ r.created_at | ist }}</td><td><a href="/admin/customers/{{ r.uid }}">{{ r.name }}</a><small>{{ r.email }}</small></td>
+<td>{{ status_pill(r.status) }}{% if r.error_code %}<small>{{ r.error_code }}</small>{% endif %}</td><td>{{ r.bank or '-' }}</td><td>{{ r.account_masked or '-' }}</td>
+<td class="nw">{{ r.period_from or '' }}{% if r.period_to %} to {{ r.period_to }}{% endif %}</td><td class="n">{{ r.txn_count if r.txn_count is not none else '-' }}</td><td>{{ r.risk_band or '-' }}</td>
+<td class="n">{{ r.charged_paise | paise }}</td><td class="n">{{ r.download_count }}</td><td class="nw">{{ r.last_downloaded_at | ist }}</td></tr>
+{% else %}<tr><td colspan="11" class="muted">No reports match.</td></tr>{% endfor %}
+</table></div>{{ pager(pg, '/admin/reports', {'q': q, 'status': status, 'sort': sort, 'test': test}) }}</div>
+{% endblock %}

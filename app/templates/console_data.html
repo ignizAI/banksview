@@ -1,0 +1,19 @@
+{% extends "console_base.html" %}{% from "console_macros.html" import pager %}{% block title %}All records{% endblock %}
+{% block body %}
+{% if not table %}
+<h1>All records</h1><p class="sub">Read-only view of the main database tables. Secrets (password hashes, authenticator keys, sign-in codes) and borrower details are not available here. Amounts are in paise in the file exports.</p>
+<div class="grid3">{% for t in tables %}<section class="card"><h2><a href="/admin/data/{{ t }}">{{ t }}</a> <small>{{ counts[t] | num }} rows</small></h2><p class="muted" style="margin:0 0 12px">{{ notes[t] }}</p>
+<a class="btn small" href="/admin/data/{{ t }}">View</a> <a class="btn small" href="/admin/export/{{ t }}.csv">CSV</a></section>{% endfor %}</div>
+{% else %}
+<p style="margin:0 0 6px"><a href="/admin/data">&larr; All records</a></p>
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+  <div><h1>{{ table }}</h1><p class="sub" style="margin:0">{{ notes[table] }} Newest first. Times are Indian time.</p></div>
+  <a class="btn" href="/admin/export/{{ table }}.csv">Download CSV</a>
+</div>
+<div class="card"><div class="tablewrap"><table>
+<tr>{% for c in cols %}<th class="{{ 'n' if c.endswith('_paise') }}">{{ c }}</th>{% endfor %}</tr>
+{% for r in rows %}<tr>{% for c in cols %}<td class="{{ 'n' if c.endswith('_paise') else '' }}">{% set v = r[c] %}{% if v is none %}<span class="muted">-</span>{% elif c.endswith('_paise') %}{{ v | paise }}{% elif c.endswith('_at') %}{{ v | ist }}{% elif c == 'user_id' %}<a href="/admin/customers/{{ v }}">{{ v }}</a>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>
+{% else %}<tr><td colspan="{{ cols|length }}" class="muted">No rows.</td></tr>{% endfor %}
+</table></div>{{ pager(pg, '/admin/data/' ~ table, {}) }}</div>
+{% endif %}
+{% endblock %}

@@ -19,6 +19,7 @@ def client():
     security.signup_throttle.hits.clear()
     security.topup_throttle.hits.clear()
     security.utr_throttle.hits.clear()
+    security.admin_throttle.hits.clear()
     from app import otp
     otp.LAST.clear()
     from app import config

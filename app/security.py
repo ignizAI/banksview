@@ -19,6 +19,7 @@ _ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="session-v1")
 _csrf_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="csrf-v1")
 _mfa_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="mfa-v1")
 _otp_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="otp-v1")
+_admin_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="admin-session-v1")      # a different salt: a customer cookie can never be read as an admin one
 
 
 try:  # Argon2id is the preferred password hash; PBKDF2 stays only as a fallback and for old hashes
@@ -98,6 +99,20 @@ def read_session(token: str | None) -> dict | None:
         return None
 
 
+def make_admin_session(user_id: int, epoch: int = 0, now: float | None = None) -> str:
+    return _admin_ser.dumps({"uid": user_id, "e": int(epoch), "ls": int(now if now is not None else time.time()), "n": secrets.token_hex(4)})
+
+
+def read_admin_session(token: str | None) -> dict | None:
+    if not token:
+        return None
+    try:
+        data = _admin_ser.loads(token, max_age=12 * 3600)       # at most 12 hours, whatever the activity
+        return {"uid": int(data["uid"]), "e": int(data.get("e", 0)), "ls": int(data.get("ls", 0))}
+    except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
+        return None
+
+
 def make_mfa_token(user_id: int) -> str:
     """Short-lived proof that the password step passed; exchanged for a session after the one-time code."""
     return _mfa_ser.dumps({"uid": user_id})
@@ -165,3 +180,4 @@ login_throttle = Throttle(limit=10, window_s=600)
 topup_throttle = Throttle(limit=15, window_s=3600)       # new payment orders per user per hour
 utr_throttle = Throttle(limit=10, window_s=3600)         # reference-number submissions per user per hour
 signup_throttle = Throttle(limit=10, window_s=3600)
+admin_throttle = Throttle(limit=5, window_s=900)           # admin sign-in attempts per address and email in 15 minutes

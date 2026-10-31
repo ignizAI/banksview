@@ -161,7 +161,8 @@ def init_db() -> None:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
         for col, ddl in (("is_master", "INTEGER NOT NULL DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER NOT NULL DEFAULT 0"),
                          ("has_password", "INTEGER NOT NULL DEFAULT 1"), ("mobile_verified", "INTEGER NOT NULL DEFAULT 0"),
-                         ("privileged", "INTEGER NOT NULL DEFAULT 0"), ("price_paise", "INTEGER"), ("session_epoch", "INTEGER NOT NULL DEFAULT 0")):
+                         ("privileged", "INTEGER NOT NULL DEFAULT 0"), ("price_paise", "INTEGER"), ("session_epoch", "INTEGER NOT NULL DEFAULT 0"),
+                         ("is_admin", "INTEGER NOT NULL DEFAULT 0")):   # is_admin: may open the admin console (separate from master test accounts)
             if col not in cols:  # databases created before this column existed
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         lcols = {r["name"] for r in conn.execute("PRAGMA table_info(wallet_ledger)")}
@@ -179,6 +180,15 @@ def init_db() -> None:
         rcols = {r["name"] for r in conn.execute("PRAGMA table_info(reports)")}
         if "borrower_consent_at" not in rcols:
             conn.execute("ALTER TABLE reports ADD COLUMN borrower_consent_at TEXT")
+        if "download_count" not in rcols:      # how many times the customer downloaded the Excel file
+            conn.execute("ALTER TABLE reports ADD COLUMN download_count INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE reports ADD COLUMN last_downloaded_at TEXT")
+            conn.execute("UPDATE reports SET download_count=(SELECT COUNT(*) FROM audit_log a WHERE a.event='download_report' AND a.ref=reports.id), "
+                         "last_downloaded_at=(SELECT MAX(created_at) FROM audit_log a WHERE a.event='download_report' AND a.ref=reports.id)")   # history before the counter existed
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_reports_created ON reports(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_payments_created ON payments(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_users_created ON users(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_audit_event ON audit_log(event, created_at)")
     finally:
         conn.close()
 

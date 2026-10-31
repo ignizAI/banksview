@@ -1,0 +1,22 @@
+{% extends "console_base.html" %}{% from "console_macros.html" import pager %}{% block title %}Customers{% endblock %}
+{% block body %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+  <div><h1>Customers</h1><p class="sub" style="margin:0">Everyone who registered, with wallet, spend, reports and downloads. Times are Indian time.</p></div>
+  <a class="btn" href="{{ urlq('/admin/export/customers.csv', test=test) }}">Download CSV</a>
+</div>
+<form class="filters" method="get" action="/admin/customers">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search name, email, mobile or company" aria-label="Search">
+  <select name="sort" aria-label="Sort by">{% for s,l in (('new','Newest first'),('spend','Highest spend'),('reports','Most uploads'),('downloads','Most downloads'),('balance','Highest balance'),('seen','Recently active')) %}<option value="{{ s }}" {{ 'selected' if sort == s }}>{{ l }}</option>{% endfor %}</select>
+  <label class="chk"><input type="checkbox" name="test" value="1" {{ 'checked' if test }}> Include test accounts</label>
+  <button class="btn">Apply</button>
+</form>
+<div class="card"><div class="tablewrap"><table>
+<tr><th>Customer</th><th>Company</th><th>Role</th><th>Joined</th><th>Last active</th><th class="n">Wallet</th><th class="n">Added</th><th class="n">Spent</th><th class="n">Uploaded</th><th class="n">Generated</th><th class="n">Failed</th><th class="n">Downloads</th></tr>
+{% for r in rows %}<tr>
+ <td><a href="/admin/customers/{{ r.id }}">{{ r.name }}</a>{% if r.is_master %} <span class="pill">test</span>{% endif %}{% if r.is_admin %} <span class="pill">admin</span>{% endif %}<small>{{ r.email }}{% if r.mobile %} · {{ r.mobile }}{% endif %}</small></td>
+ <td>{{ r.org or '-' }}</td><td>{{ r.role }}</td><td class="nw">{{ r.created_at | ist('%d %b %Y') }}</td><td class="nw">{{ r.last_seen | ist('%d %b, %H:%M') }}</td>
+ <td class="n">{{ r.balance_paise | paise }}</td><td class="n">{{ r.topped | paise }}</td><td class="n">{{ r.spent | paise }}</td>
+ <td class="n">{{ r.uploaded }}</td><td class="n">{{ r.generated }}</td><td class="n">{{ r.failed }}</td><td class="n">{{ r.downloads }}</td></tr>
+{% else %}<tr><td colspan="12" class="muted">No customers match.</td></tr>{% endfor %}
+</table></div>{{ pager(pg, '/admin/customers', {'q': q, 'sort': sort, 'test': test}) }}</div>
+{% endblock %}

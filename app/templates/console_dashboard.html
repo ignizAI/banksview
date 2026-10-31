@@ -1,0 +1,53 @@
+{% extends "console_base.html" %}{% from "console_macros.html" import status_pill %}{% block title %}Analytics{% endblock %}
+{% block body %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+  <div><h1>Analytics</h1>
+  <p class="sub" style="margin:0">Customers only: master test accounts and admins are {{ 'included' if test else 'left out' }}. Dates are Indian time. Updated {{ now | ist('%d %b, %H:%M') }}.</p></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="seg" role="group" aria-label="Period">{% for d in (7, 30, 90) %}<a href="{{ urlq('/admin', days=d, test=test) }}" class="{{ 'on' if d == days }}">{{ d }} days</a>{% endfor %}</div>
+    <a class="btn small" href="{{ urlq('/admin', days=days, test=(0 if test else 1)) }}">{{ 'Hide' if test else 'Include' }} test accounts</a>
+  </div>
+</div>
+
+<section class="kpis" aria-label="Key figures">
+  <div class="kpi"><div class="l">Registered customers</div><div class="v">{{ k.users_total | num }}</div><div class="d">+{{ k.users_window | num }} in {{ days }} days · +{{ k.users_7d | num }} in 7 days</div></div>
+  <div class="kpi"><div class="l">Revenue collected</div><div class="v">{{ k.revenue_total | paise }}</div><div class="d">{{ k.revenue_window | paise }} in {{ days }} days · {{ k.pay_paid | num }} payments</div></div>
+  <div class="kpi"><div class="l">Customers who paid</div><div class="v">{{ k.paying | num }}</div><div class="d">{{ pct(k.paying, k.users_total) }} of registered</div></div>
+  <div class="kpi"><div class="l">Reports generated</div><div class="v">{{ k.rep_done | num }}</div><div class="d">{{ k.w_done | num }} in {{ days }} days · {{ success }} succeeded</div></div>
+  <div class="kpi"><div class="l">Statements uploaded</div><div class="v">{{ k.rep_total | num }}</div><div class="d">{{ k.rep_failed | num }} rejected or failed (not charged)</div></div>
+  <div class="kpi"><div class="l">Excel downloads</div><div class="v">{{ k.downloads_total | num }}</div><div class="d">{{ k.dl_reports | num }} of {{ k.rep_done | num }} reports downloaded</div></div>
+  <div class="kpi"><div class="l">Spent on reports</div><div class="v">{{ k.spent_total | paise }}</div><div class="d">{{ k.w_spent | paise }} in {{ days }} days</div></div>
+  <div class="kpi"><div class="l">Wallet money held</div><div class="v">{{ k.wallet_balance | paise }}</div><div class="d">{{ k.wallet_held | paise }} reserved for reports in progress</div></div>
+</section>
+{% if k.pay_review %}<div class="card" style="border-color:var(--warn)"><strong>{{ k.pay_review }} UPI payment{{ '' if k.pay_review == 1 else 's' }} waiting for review.</strong> <a href="/admin/transactions?status=review">See them</a> · approve in the main site's master area.</div>{% endif %}
+
+<div class="grid2">
+  <section class="card"><h2>Sign-ups per day <small>last {{ days }} days</small></h2>{{ ch.sign }}</section>
+  <section class="card"><h2>Revenue per day <small>payments received</small></h2>{{ ch.rev }}</section>
+  <section class="card"><h2>Reports per day <small>uploaded</small></h2>
+    <div class="legend"><span><i class="s1"></i>Generated</span><span><i class="s2"></i>Failed or rejected</span></div>{{ ch.rep }}</section>
+  <section class="card"><h2>Downloads per day <small>Excel files</small></h2>{{ ch.dl }}</section>
+</div>
+
+<div class="grid2">
+  <section class="card"><h2>Customer journey <small>customers who reached each step, all time</small></h2>{{ ch.funnel }}</section>
+  <section class="card"><h2>Reports by bank <small>last {{ days }} days</small></h2>{{ ch.banks }}</section>
+</div>
+<div class="grid3">
+  <section class="card"><h2>Why uploads failed <small>last {{ days }} days</small></h2>{{ ch.fails }}</section>
+  <section class="card"><h2>Payment packs sold <small>count · amount</small></h2>{{ ch.packs }}</section>
+  <section class="card"><h2>Customers by role</h2>{{ ch.roles }}</section>
+</div>
+
+<section class="card"><h2>Top customers <small>by spend on reports · <a href="/admin/customers?sort=spend">see all</a></small></h2>
+{% if a.top %}<div class="tablewrap"><table><tr><th>Customer</th><th>Company</th><th class="n">Spent</th><th class="n">Uploaded</th><th class="n">Generated</th><th class="n">Downloads</th></tr>
+{% for r in a.top %}<tr><td><a href="/admin/customers/{{ r.id }}">{{ r.name }}</a><small>{{ r.email }}</small></td><td>{{ r.org or '-' }}</td><td class="n">{{ r.spent | paise }}</td><td class="n">{{ r.uploaded }}</td><td class="n">{{ r.done }}</td><td class="n">{{ r.dl }}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No reports yet.</p>{% endif %}</section>
+
+<div class="grid2">
+  <section class="card"><h2>Newest sign-ups <small><a href="/admin/customers">all customers</a></small></h2>
+  {% if a.recent_users %}<div class="tablewrap"><table>{% for r in a.recent_users %}<tr><td><a href="/admin/customers/{{ r.id }}">{{ r.name }}</a><small>{{ r.email }}</small></td><td>{{ r.role }}</td><td class="nw">{{ r.created_at | ist }}</td></tr>{% endfor %}</table></div>{% else %}<p class="muted">No sign-ups yet.</p>{% endif %}</section>
+  <section class="card"><h2>Latest payments <small><a href="/admin/transactions">all payments</a></small></h2>
+  {% if a.recent_pay %}<div class="tablewrap"><table>{% for r in a.recent_pay %}<tr><td><a href="/admin/customers/{{ r.uid }}">{{ r.name }}</a><small>{{ r.order_id }}</small></td><td class="n">{{ r.amount_paise | paise }}</td><td>{{ status_pill(r.status) }}</td><td class="nw">{{ r.created_at | ist }}</td></tr>{% endfor %}</table></div>{% else %}<p class="muted">No payments yet.</p>{% endif %}</section>
+</div>
+{% endblock %}

@@ -48,6 +48,7 @@ BACKUP_DAILY = os.environ.get("BACKUP_DAILY", "0") == "1"           # in-app dai
 BACKUP_KEEP = _int("BACKUP_KEEP", 14)
 SESSION_DAYS = _int("SESSION_DAYS", 7)
 SESSION_IDLE_MINUTES = _int("SESSION_IDLE_MINUTES", 30)     # an unattended screen signs itself out
+ADMIN_IDLE_MINUTES = _int("ADMIN_IDLE_MINUTES", 20)           # the admin console signs itself out sooner
 ALLOWED_HOSTS = [h.strip().lower() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
 ALLOW_SIGNUP = os.environ.get("ALLOW_SIGNUP", "1") == "1"
 

@@ -1,0 +1,23 @@
+{% extends "console_base.html" %}{% from "console_macros.html" import pager, status_pill %}{% block title %}Payments{% endblock %}
+{% block body %}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+  <div><h1>Payment history</h1><p class="sub" style="margin:0">Every payment attempt and its outcome. To approve UPI payments, use the Payments page of the main site's master area.</p></div>
+  <a class="btn" href="/admin/export/payments.csv">Download CSV</a>
+</div>
+<section class="kpis">
+  {% for s,l in (('paid','Paid'),('created','Started, not paid'),('review','Waiting for review'),('failed','Failed')) %}
+  <a class="kpi" href="{{ urlq('/admin/transactions', status=s, test=test) }}" style="color:inherit;text-decoration:none"><div class="l">{{ l }}</div><div class="v">{{ (sums[s].n if s in sums else 0) | num }}</div><div class="d">{{ (sums[s].s if s in sums else 0) | paise }}</div></a>{% endfor %}
+</section>
+<form class="filters" method="get" action="/admin/transactions">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search customer, order or reference" aria-label="Search">
+  <select name="status" aria-label="Status"><option value="">All statuses</option>{% for s in ('paid','created','review','failed') %}<option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>{% endfor %}</select>
+  <label class="chk"><input type="checkbox" name="test" value="1" {{ 'checked' if test }}> Include test accounts</label>
+  <button class="btn">Apply</button>
+</form>
+<div class="card"><div class="tablewrap"><table>
+<tr><th>Created</th><th>Customer</th><th>Order</th><th>Provider</th><th>Pack</th><th class="n">Paid</th><th class="n">Wallet credit</th><th>Status</th><th>Reference</th><th>Settled</th></tr>
+{% for r in rows %}<tr><td class="nw">{{ r.created_at | ist }}</td><td><a href="/admin/customers/{{ r.user_id }}">{{ r.name }}</a><small>{{ r.email }}</small></td><td>{{ r.order_id }}</td><td>{{ r.provider }}</td><td>{{ r.pack or '-' }}</td>
+<td class="n">{{ r.amount_paise | paise }}</td><td class="n">{{ (r.credit_paise or r.amount_paise) | paise }}</td><td>{{ status_pill(r.status) }}</td><td>{{ r.payment_id or '-' }}</td><td class="nw">{{ r.paid_at | ist }}</td></tr>
+{% else %}<tr><td colspan="10" class="muted">No payments match.</td></tr>{% endfor %}
+</table></div>{{ pager(pg, '/admin/transactions', {'q': q, 'status': status, 'test': test}) }}</div>
+{% endblock %}
