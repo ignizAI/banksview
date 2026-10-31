@@ -19,6 +19,7 @@ _ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="session-v1")
 _csrf_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="csrf-v1")
 _mfa_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="mfa-v1")
 _otp_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="otp-v1")
+_admin_setup_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="admin-mfa-setup-v1")     # proves the password was just checked; only good for enrolling
 _admin_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="admin-session-v1")      # a different salt: a customer cookie can never be read as an admin one
 
 
@@ -109,6 +110,19 @@ def read_admin_session(token: str | None) -> dict | None:
     try:
         data = _admin_ser.loads(token, max_age=12 * 3600)       # at most 12 hours, whatever the activity
         return {"uid": int(data["uid"]), "e": int(data.get("e", 0)), "ls": int(data.get("ls", 0))}
+    except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
+        return None
+
+
+def make_admin_setup_token(user_id: int) -> str:
+    return _admin_setup_ser.dumps({"uid": int(user_id)})
+
+
+def read_admin_setup_token(token: str | None) -> int | None:
+    if not token:
+        return None
+    try:
+        return int(_admin_setup_ser.loads(token, max_age=600)["uid"])
     except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
         return None
 

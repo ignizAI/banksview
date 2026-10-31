@@ -144,10 +144,65 @@ def login(request: Request, email: str = Form(""), password: str = Form(""), cod
             audit(request, u["id"], "admin_login_failed", "mfa")
             return fail()
     elif config.MFA_REQUIRED:
-        return fail("Set up the authenticator app first: sign in once at /staff/login and follow the prompts, then return here.", 403)
+        audit(request, u["id"], "admin_mfa_setup_start")
+        resp = finish(RedirectResponse("/admin/mfa-setup", status_code=303))
+        resp.set_cookie("apend", security.make_admin_setup_token(u["id"]), max_age=600, httponly=True, samesite="strict", path="/admin", secure=config.APP_ENV == "production")
+        return resp
     security.admin_throttle.reset(f"{ip}|{email}")
     audit(request, u["id"], "admin_login")
     return finish(_cookie(RedirectResponse("/admin", status_code=303), u["id"], u["session_epoch"] or 0))
+
+
+def _setup_user(request: Request):
+    uid = security.read_admin_setup_token(request.cookies.get("apend"))
+    if not uid:
+        return None
+    with db() as conn:
+        return conn.execute("SELECT * FROM users WHERE id=? AND is_admin=1 AND has_password=1 AND mfa_enabled=0", (uid,)).fetchone()
+
+
+def _setup_page(request: Request, u, error=None, code=200):
+    from .db import tx
+    secret = u["mfa_secret"]
+    if not secret:
+        secret = security.new_totp_secret()
+        with tx() as conn:
+            conn.execute("UPDATE users SET mfa_secret=? WHERE id=?", (secret, u["id"]))
+    grouped = " ".join(secret[i:i + 4] for i in range(0, len(secret), 4))
+    ctx = dict(error=error, grouped=grouped, account=u["email"], csrf=security.make_csrf(f"adm-setup{u['id']}"),
+               ASSET_A=int((APP_DIR / "static" / "admin.css").stat().st_mtime), admin=None)
+    return finish(templates.TemplateResponse(request, "console_mfa_setup.html", ctx, status_code=code), None)
+
+
+@router.get("/admin/mfa-setup")
+def mfa_setup_page(request: Request):
+    u = _setup_user(request)
+    if not u:
+        return to_login()
+    return _setup_page(request, u)
+
+
+@router.post("/admin/mfa-setup")
+def mfa_setup(request: Request, code: str = Form(""), csrf: str = Form("")):
+    u = _setup_user(request)
+    if not u:
+        return to_login()
+    ip = ip_of(request)
+    if not security.check_csrf(csrf, f"adm-setup{u['id']}"):
+        return _setup_page(request, u, "Your session expired. Please try again.", 400)
+    if not (security.admin_throttle.allow(f"setup|{ip}|{u['id']}") and security.admin_throttle.allow(f"ip|{ip}")):
+        return _setup_page(request, u, "Too many attempts. Please wait 15 minutes.", 429)
+    if not security.verify_totp(u["mfa_secret"] or "", code.strip()):
+        audit(request, u["id"], "admin_login_failed", "mfa-setup")
+        return _setup_page(request, u, "That code is not correct. Enter the current 6-digit code from your authenticator app.", 401)
+    from .db import tx
+    with tx() as conn:
+        conn.execute("UPDATE users SET mfa_enabled=1 WHERE id=?", (u["id"],))
+    audit(request, u["id"], "admin_mfa_enabled")
+    audit(request, u["id"], "admin_login", "mfa-setup")
+    resp = _cookie(RedirectResponse("/admin", status_code=303), u["id"], u["session_epoch"] or 0)
+    resp.delete_cookie("apend", path="/admin")
+    return finish(resp)
 
 
 @router.post("/admin/logout")

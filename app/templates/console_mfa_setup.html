@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Admin two-step setup | {{ BRAND }}</title>
+<link rel="stylesheet" href="/static/admin.css?v={{ ASSET_A }}">
+</head><body class="signin">
+<div class="signbox">
+  <span class="logo">{{ BRAND }}<small>Admin</small></span>
+  <h1>Set up two-step sign-in</h1>
+  <p class="sub" style="margin-bottom:16px">Required once. Your password was accepted; add the authenticator to finish.</p>
+  {% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+  <ol class="muted" style="padding-left:20px;margin-top:0">
+    <li>Install an authenticator app (Google Authenticator, Microsoft Authenticator, Authy).</li>
+    <li>Add an account, choose <b>Enter a setup key</b>, time-based, and use the key below.</li>
+    <li>Type the 6-digit code it shows.</li>
+  </ol>
+  <div class="card" style="text-align:center;margin:14px 0">
+    <small class="muted">Setup key</small>
+    <div style="font:700 18px/1.5 ui-monospace,Menlo,monospace;letter-spacing:.04em;word-break:break-all">{{ grouped }}</div>
+    <small class="muted">Account: {{ account }}</small>
+  </div>
+  <form method="post" action="/admin/mfa-setup">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label for="c">6-digit code</label><input id="c" type="text" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="8" autocomplete="one-time-code" required autofocus></div>
+    <button class="btn primary" style="width:100%">Turn on and sign in</button>
+  </form>
+  <p class="fine"><a href="/admin/login">Back to sign in</a></p>
+</div>
+</body></html>

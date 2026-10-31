@@ -48,7 +48,7 @@ A separate sign-in at `/admin/login` (not linked from the public site). It shows
 python -m app.cli admin you@example.com 'a-passphrase-of-12-or-more-characters'   # create, or promote an existing account
 python -m app.cli admin you@example.com x revoke                                  # remove admin access
 ```
-- Admin is separate from master (test) accounts and works in production. In production the admin must have the authenticator app set up: sign in once at `/staff/login`, finish the prompts, then use `/admin/login`.
+- Admin is separate from master (test) accounts and works in production. In production the first `/admin/login` with the right password leads to a one-time authenticator setup page inside the admin console (no use of the staff/test login); after that, each sign-in asks for the 6-digit code.
 - The admin session is a separate cookie that ends after `ADMIN_IDLE_MINUTES` (default 20) idle minutes. Sign-ins, customer views and exports are written to the audit log.
 - Download counts start with each report's own counter; older downloads are counted from the audit log when the new version first starts.
 

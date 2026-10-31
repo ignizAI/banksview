@@ -117,12 +117,38 @@ def test_authenticator_code_is_required_when_enrolled(client):
     assert admin_login(client, code=code).status_code == 303
 
 
-def test_production_requires_authenticator(client, monkeypatch):
-    from app import config
+def test_production_enrols_authenticator_inside_admin_console(client, monkeypatch):
+    """No detour through the tester/staff login: password, then enrol the authenticator, then in."""
+    import base64, hashlib, hmac, struct
+    from app import config, security
+    from app.db import db
     make_admin()
     monkeypatch.setattr(config, "MFA_REQUIRED", True)
     r = admin_login(client)
-    assert r.status_code == 403 and "authenticator" in r.text.lower()
+    assert r.status_code == 303 and r.headers["location"] == "/admin/mfa-setup"
+    assert client.get("/admin", follow_redirects=False).status_code == 303          # not signed in yet
+    page = client.get("/admin/mfa-setup")
+    assert page.status_code == 200 and "staff" not in page.text.lower()
+    with db() as c:
+        secret = c.execute("SELECT mfa_secret FROM users WHERE email=?", (ADMIN_EMAIL,)).fetchone()[0]
+    assert secret and secret.replace(" ", "")[:4] in page.text
+    csrf = csrf_from(page.text)
+    bad = client.post("/admin/mfa-setup", data={"csrf": csrf, "code": "000000"}, follow_redirects=False)
+    assert bad.status_code == 401
+    key = base64.b32decode(secret.upper() + "=" * (-len(secret) % 8))
+    h = hmac.new(key, struct.pack(">Q", int(time.time() // 30)), hashlib.sha1).digest()
+    o = h[-1] & 15
+    code = f"{(struct.unpack('>I', h[o:o + 4])[0] & 0x7fffffff) % 1000000:06d}"
+    ok = client.post("/admin/mfa-setup", data={"csrf": csrf_from(bad.text), "code": code}, follow_redirects=False)
+    assert ok.status_code == 303 and ok.headers["location"] == "/admin"
+    assert client.get("/admin").status_code == 200
+    with db() as c:
+        assert c.execute("SELECT mfa_enabled FROM users WHERE email=?", (ADMIN_EMAIL,)).fetchone()[0] == 1
+
+
+def test_mfa_setup_page_needs_a_fresh_password_check(client):
+    assert client.get("/admin/mfa-setup", follow_redirects=False).status_code == 303
+    assert client.post("/admin/mfa-setup", data={"csrf": "x", "code": "123456"}, follow_redirects=False).status_code == 303
 
 
 def test_logout_kills_the_cookie_everywhere(admin):
