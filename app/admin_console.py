@@ -124,7 +124,7 @@ def login_page(request: Request):
 def login(request: Request, email: str = Form(""), password: str = Form(""), code: str = Form(""), csrf: str = Form("")):
     email = email.strip().lower()[:200]
 
-    def fail(msg="Incorrect email, password or code.", status=401):
+    def fail(msg="Incorrect username, password or code.", status=401):
         return page(request, "console_login.html", None, code=status, error=msg, email=email)
 
     if not security.check_csrf(csrf, "adm-anon"):

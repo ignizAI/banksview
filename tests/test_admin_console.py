@@ -58,7 +58,7 @@ def test_customer_cookie_cannot_be_replayed_as_admin_cookie(client):
 def test_master_test_account_is_not_an_admin(client):
     make_admin("tester@example.com", ADMIN_PW, admin=False)
     r = admin_login(client, "tester@example.com")
-    assert r.status_code == 401 and "Incorrect email, password or code" in r.text
+    assert r.status_code == 401 and "Incorrect username, password or code" in r.text
 
 
 def test_admin_cannot_use_customer_pages_through_admin_cookie(admin):
