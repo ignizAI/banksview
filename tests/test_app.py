@@ -1,3 +1,4 @@
+import os
 import io
 import openpyxl
 import pytest
@@ -1254,3 +1255,32 @@ def test_backup_is_consistent_and_rotates(client, monkeypatch):
 def test_health_check_works_with_an_internal_host_header(client):
     assert client.get("/health", headers={"host": "172.19.0.5:8000"}).status_code == 200
     assert client.get("/", headers={"host": "172.19.0.5:8000"}).status_code == 400
+
+
+
+def test_reports_are_kept_30_days_by_default_and_expiry_is_hourly(monkeypatch):
+    import os
+    from app import config, main
+    if "REPORT_RETENTION_DAYS" not in os.environ:
+        assert config.REPORT_RETENTION_DAYS == 30
+    called = []
+    monkeypatch.setattr(main, "cleanup_expired", lambda: called.append("clean") or 0)
+    monkeypatch.setattr(main, "recover_stuck", lambda: 0)
+    import time
+    main._start_housekeeping(every_s=0.05)
+    time.sleep(0.4)
+    assert "clean" in called                      # it runs while the server is up, not only at start
+
+
+def test_uploaded_statement_is_never_written_to_disk(user):
+    from app import config
+    add_money(user, 1000)
+    upload(user, GOOD)
+    leaked = []
+    for root, _d, files in os.walk(config.DATA_DIR):
+        for f in files:
+            path = os.path.join(root, f)
+            if f.lower().endswith(".pdf") or (not f.endswith((".db", "-wal", "-shm", ".xlsx")) and b"%PDF" in open(path, "rb").read(2048)):
+                leaked.append(path)
+    assert leaked == []
+    assert not config.UPLOAD_TMP_DIR.exists() or not any(config.UPLOAD_TMP_DIR.iterdir())

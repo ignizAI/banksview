@@ -39,9 +39,8 @@ MAX_TOPUP_PAISE = _int("MAX_TOPUP_PAISE", 10000000)        # Rs 1,00,000 per top
 # --- Upload limits ---
 MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 15)
 MAX_PDF_PAGES = _int("MAX_PDF_PAGES", 150)
-KEEP_UPLOADED_PDF = os.environ.get("KEEP_UPLOADED_PDF", "0") == "1"   # default: delete after parsing
 DUPLICATE_WINDOW_DAYS = _int("DUPLICATE_WINDOW_DAYS", 30)
-REPORT_RETENTION_DAYS = _int("REPORT_RETENTION_DAYS", 90)
+REPORT_RETENTION_DAYS = _int("REPORT_RETENTION_DAYS", 30)      # the Excel file, summary and file name are deleted this many days after creation
 
 # --- Sessions ---
 BACKUP_DAILY = os.environ.get("BACKUP_DAILY", "0") == "1"           # in-app daily database backup

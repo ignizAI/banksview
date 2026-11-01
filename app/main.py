@@ -23,12 +23,30 @@ from .db import db, init_db, tx
 APP_DIR = Path(__file__).resolve().parent
 
 
+def _start_housekeeping(every_s: int = 3600) -> None:
+    """Delete expired reports every hour while the server runs, not only when it starts, so a file never outlives its retention period."""
+    import logging
+    import threading
+    import time as _time
+
+    def loop():
+        while True:
+            _time.sleep(every_s)
+            try:
+                cleanup_expired()
+                recover_stuck()
+            except Exception:
+                logging.getLogger("banksview").exception("housekeeping failed")
+    threading.Thread(target=loop, name="housekeeping", daemon=True).start()
+
+
 @asynccontextmanager
 async def lifespan(app):
     config.check_production_safety()
     init_db()
     recover_stuck()
     cleanup_expired()
+    _start_housekeeping()
     if config.BACKUP_DAILY:
         from . import backup
         backup.start_daily()
