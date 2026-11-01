@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% block title %}Create account | {{ BRAND }}{% endblock %}
 {% block body %}
 <div class="auth card">
-  <h1>Create your account</h1><p class="sub">For DSAs, loan agents and small NBFCs. We email a code to confirm your address.</p>
+  <h1>Create your account</h1><p class="sub">For DSAs, loan agents and small NBFCs. Choose a password and you are in.</p>
   {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
   <form method="post" action="/signup">
     <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -13,14 +13,16 @@
         <div class="phone"><select name="country" aria-label="Country code" autocomplete="tel-country-code">{% for code, cname in COUNTRIES %}<option value="{{ code }}" {{ 'selected' if form.get('country', '+91') == code }}>{{ code }} {{ cname }}</option>{% endfor %}</select>
         <input id="mob" type="tel" name="mobile" value="{{ form.get('mobile','') }}" inputmode="numeric" pattern="[0-9]*" maxlength="14" placeholder="9876543210" required autocomplete="tel-national" data-digits></div>
         <div class="hint">Digits only, no spaces. Choose the country code, then type the number without it.</div></div>
-      <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required autocomplete="email"></div>
+      <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required autocomplete="email"><div class="hint">This is your username to sign in.</div></div>
+      <div class="field"><label for="pw">Password</label><input id="pw" type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password"><div class="hint">At least 8 characters. Do not reuse a password from another site.</div></div>
+      <div class="field"><label for="pw2">Repeat password</label><input id="pw2" type="password" name="confirm" required minlength="8" maxlength="128" autocomplete="new-password"></div>
     <fieldset class="consent">
       <legend>Required to create an account</legend>
       <label><input type="checkbox" name="agree_terms" value="1" required> I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a>. I understand that {{ BRAND }} is a software platform, that wallet money is not refundable, and that I am responsible for how I use the reports.</label>
       <label><input type="checkbox" name="agree_privacy" value="1" required> I have read the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a> and consent to my account data being processed as described there.</label>
       <label><input type="checkbox" name="agree_borrower" value="1" required> I will upload a bank statement only after the account holder has consented to it being uploaded and analysed, and only when I am authorised to upload it.</label>
     </fieldset>
-    <button class="btn" style="width:100%">Email me a code</button>
+    <button class="btn" style="width:100%">Create account</button>
   </form>
   <p class="muted" style="margin-top:14px">Already have an account? <a href="/login">Sign in</a></p>
 </div>

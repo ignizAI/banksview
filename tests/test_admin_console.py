@@ -211,8 +211,6 @@ def test_search_text_is_escaped_and_odd_input_is_safe(admin):
         r = admin.get("/admin/customers", params={"q": q, "sort": "x; DROP TABLE users", "page_no": "999"})
         assert r.status_code == 200 and "<script>alert(1)" not in r.text
     assert admin.get("/admin/data/users;drop").status_code == 404
-    assert admin.get("/admin/data/otps").status_code == 404           # sign-in codes are not browsable
-    assert admin.get("/admin/export/otps.csv").status_code == 404
     assert admin.get("/admin/customers/99999").status_code == 404
     assert admin.get("/admin/transactions?status=%27", follow_redirects=False).status_code == 200
 
@@ -269,7 +267,7 @@ def test_cli_admin_command(client, capsys):
 # ----------------------------------------------------------------------------- customer actions: add, credit, delete
 def _new(client, **kw):
     page = client.get("/admin/customers/new")
-    data = {"name": "Meera Shah", "email": "meera@example.com", "mobile": "9876543210", "role": "lender", "org": "Shah Finance", "credit": "", "csrf": csrf_from(page.text)}
+    data = {"name": "Meera Shah", "email": "meera@example.com", "mobile": "9876543210", "role": "lender", "org": "Shah Finance", "credit": "", "password": "Welcome-pass-2024", "csrf": csrf_from(page.text)}
     data.update(kw)
     return client.post("/admin/customers/new", data=data, follow_redirects=False)
 
@@ -304,7 +302,7 @@ def test_add_customer_with_starting_credit(admin):
         u = c.execute("SELECT balance_paise, has_password, mobile, role FROM users WHERE id=?", (uid,)).fetchone()
         led = c.execute("SELECT kind, amount_paise, note FROM wallet_ledger WHERE user_id=?", (uid,)).fetchall()
         ev = c.execute("SELECT event FROM audit_log WHERE event='admin_create_customer'").fetchall()
-    assert (u["balance_paise"], u["has_password"], u["mobile"], u["role"]) == (25000, 0, "9876543210", "lender")
+    assert (u["balance_paise"], u["has_password"], u["mobile"], u["role"]) == (25000, 1, "9876543210", "lender")
     assert [(x["kind"], x["amount_paise"]) for x in led] == [("adjust", 25000)] and ev
     assert wallet.verify_ledger() == []
     assert "Customer added" in admin.get(r.headers["location"]).text
@@ -388,7 +386,6 @@ def test_delete_customer_with_history_erases_personal_data_but_keeps_financial_r
         c.execute("INSERT INTO payments(user_id, provider, order_id, amount_paise, status) VALUES (?,?,?,?,?)", (uid, "mock", "order_keep_1", 10000, "paid"))
         c.execute("INSERT INTO reports(id, user_id, applicant_ref, filename, status, xlsx_path, bank) VALUES (?,?,?,?,?,?,?)",
                   ("rep1", uid, "BORROWER-NAME-9", "borrower.pdf", "done", str(f), "HDFC"))
-        c.execute("INSERT INTO otps(purpose, mobile, email, code_hash, expires_at, created_at) VALUES ('login','meera@example.com','meera@example.com','h',9999999999,1)")
     r = admin.post(f"/admin/customers/{uid}/delete", data={"confirm": "meera@example.com", "csrf": _csrf(admin, uid)}, follow_redirects=False)
     assert r.status_code == 303
     with db() as c:
@@ -398,7 +395,6 @@ def test_delete_customer_with_history_erases_personal_data_but_keeps_financial_r
         assert c.execute("SELECT COUNT(*) FROM reports WHERE user_id=?", (uid,)).fetchone()[0] == 0
         assert c.execute("SELECT COUNT(*) FROM payments WHERE user_id=?", (uid,)).fetchone()[0] == 1       # financial records stay
         assert c.execute("SELECT COUNT(*) FROM wallet_ledger WHERE user_id=?", (uid,)).fetchone()[0] == 1
-        assert c.execute("SELECT COUNT(*) FROM otps").fetchone()[0] == 0
     assert not f.exists() and wallet.verify_ledger() == []
     page = admin.get(f"/admin/customers/{uid}")
     assert page.status_code == 200 and "was deleted" in page.text and "Add credit to wallet" not in page.text
@@ -577,3 +573,26 @@ def test_admin_add_customer_with_a_country_code(admin):
     assert "+971,501234567" in admin.get("/admin/export/customers.csv").text or "+971" in admin.get("/admin/export/customers.csv").text
     assert _new(admin, email="m2@example.com", mobile="123", country="+971").status_code == 422
     assert 'name="country"' in admin.get("/admin/customers/new").text and "data-digits" in admin.get("/admin/customers/new").text
+
+
+def test_admin_sets_a_customer_password(admin, client):
+    from conftest import PASSWORD
+    from app.db import db
+    _new(admin)
+    uid = _cid("meera@example.com")
+    assert admin.post(f"/admin/customers/{uid}/password", data={"password": "abc", "csrf": _csrf(admin, uid)}).status_code == 422
+    r = admin.post(f"/admin/customers/{uid}/password", data={"password": "Fresh-pass-2024", "csrf": _csrf(admin, uid)}, follow_redirects=False)
+    assert r.status_code == 303
+    with db() as c:
+        assert c.execute("SELECT has_password FROM users WHERE id=?", (uid,)).fetchone()[0] == 1
+        assert "Fresh-pass-2024" not in str(c.execute("SELECT ref FROM audit_log WHERE event='admin_set_customer_password'").fetchall()[0][0])
+    from conftest import otp_login
+    client.cookies.clear()
+    assert otp_login(client, email="meera@example.com", password="Fresh-pass-2024").status_code == 303
+
+
+def test_admin_cannot_set_an_admin_password_here(admin):
+    from app.db import db
+    with db() as c:
+        aid = c.execute("SELECT id FROM users WHERE is_admin=1").fetchone()[0]
+    assert admin.post(f"/admin/customers/{aid}/password", data={"password": "Fresh-pass-2024", "csrf": _csrf(admin, aid)}).status_code == 403

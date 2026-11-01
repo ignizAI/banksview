@@ -70,19 +70,6 @@ MASTER_ENABLED = APP_ENV != "production" or os.environ.get("ALLOW_MASTER", "0") 
 COUPONS_ENABLED = os.environ.get("COUPONS_ENABLED", "0") == "1"   # coupons are switched off for now; set COUPONS_ENABLED=1 to bring them back
 COUPON_PERCENT = _int("COUPON_PERCENT", 20)
 
-# --- Mobile OTP sign-in ---
-OTP_PROVIDER = os.environ.get("OTP_PROVIDER", "dev")      # dev (code shown on screen and in the log) | email | msg91
-OTP_TTL_SECONDS = _int("OTP_TTL_SECONDS", 300)
-OTP_MAX_ATTEMPTS = _int("OTP_MAX_ATTEMPTS", 5)
-OTP_RESEND_SECONDS = _int("OTP_RESEND_SECONDS", 30)
-OTP_SENDS_PER_HOUR = _int("OTP_SENDS_PER_HOUR", 5)
-SMTP_HOST = os.environ.get("SMTP_HOST", "")
-SMTP_PORT = _int("SMTP_PORT", 587)
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-SMTP_FROM = os.environ.get("SMTP_FROM", "")
-MSG91_AUTH_KEY = os.environ.get("MSG91_AUTH_KEY", "")
-MSG91_TEMPLATE_ID = os.environ.get("MSG91_TEMPLATE_ID", "")     # DLT-registered OTP template
 
 # --- Payments ---
 PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "mock")      # mock | razorpay | upi_qr
@@ -107,12 +94,6 @@ def check_production_safety() -> None:
             raise RuntimeError("Set SECRET_KEY before running in production.")
         if PAYMENT_MODE == "mock":
             raise RuntimeError("PAYMENT_MODE=mock credits wallets without real money; use razorpay in production.")
-        if OTP_PROVIDER == "dev":
-            raise RuntimeError("OTP_PROVIDER=dev shows the code on screen; configure a real SMS provider (OTP_PROVIDER=msg91) in production.")
-        if OTP_PROVIDER == "email" and not (SMTP_HOST and SMTP_FROM):
-            raise RuntimeError("SMTP_HOST and SMTP_FROM are required for email OTP.")
-        if OTP_PROVIDER == "msg91" and not (MSG91_AUTH_KEY and MSG91_TEMPLATE_ID):
-            raise RuntimeError("MSG91_AUTH_KEY and MSG91_TEMPLATE_ID are required for SMS OTP.")
         if not [h for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1", "testserver")]:
             raise RuntimeError("Set ALLOWED_HOSTS to your real domain(s), for example banksview.com,www.banksview.com.")
         if PAYMENT_MODE == "upi_qr" and not UPI_ID:

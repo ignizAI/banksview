@@ -28,7 +28,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse, Response
 from markupsafe import Markup
 
-from . import config, otp, security, wallet
+from . import config, phone, security, wallet
 from .db import db, tx
 from .main import APP_DIR, EMAIL_RX, ROLES, _group, audit, fmt_paise, ip_of, templates
 
@@ -668,7 +668,7 @@ def _customer_view(request: Request, u, uid: int, code: int = 200, error=None, d
         acts = c.execute("SELECT event, ref, ip, created_at FROM audit_log WHERE user_id=? ORDER BY id DESC LIMIT 40", (uid,)).fetchall()
     protected = bool(cu["is_admin"] or cu["is_master"] or cu["id"] == u["id"])
     return page(request, "console_customer.html", u, code=code, c=cu, stats=stats, topped=topped, pays=pays, reps=reps, ledger=ledger, consents=consents, acts=acts,
-                error=error, done=done if done in ("created", "credited") else None, form=form or {}, protected=protected, nav="customers",
+                error=error, done=done if done in ("created", "credited", "password") else None, form=form or {}, protected=protected, nav="customers",
                 max_credit=fmt_paise(config.MAX_TOPUP_PAISE))
 
 
@@ -682,7 +682,7 @@ def customer_new_page(request: Request):
 
 @router.post("/admin/customers/new")
 def customer_new(request: Request, name: str = Form(""), email: str = Form(""), mobile: str = Form(""), country: str = Form("+91"), role: str = Form(""), org: str = Form(""),
-                 credit: str = Form(""), csrf: str = Form("")):
+                 password: str = Form(""), credit: str = Form(""), csrf: str = Form("")):
     u = admin_user(request)
     if not u:
         return to_login()
@@ -694,8 +694,8 @@ def customer_new(request: Request, name: str = Form(""), email: str = Form(""), 
     if not security.check_csrf(csrf, f"adm{u['id']}"):
         return fail("Your session expired. Please reload and try again.", 400)
     try:
-        cc, num = otp.parse_phone(country, mobile)
-    except otp.PhoneError as e:
+        cc, num = phone.parse_phone(country, mobile)
+    except phone.PhoneError as e:
         cc = num = None
         phone_error = str(e)
     if not form["name"]:
@@ -706,6 +706,9 @@ def customer_new(request: Request, name: str = Form(""), email: str = Form(""), 
         return fail(phone_error)
     if form["role"] not in ROLES:
         return fail("Please choose a role.")
+    problem = security.password_problem(password, form["email"], form["name"])
+    if problem:
+        return fail(problem)
     paise = 0
     if form["credit"]:
         try:
@@ -716,8 +719,8 @@ def customer_new(request: Request, name: str = Form(""), email: str = Form(""), 
             return fail(f"Starting credit cannot be more than {fmt_paise(config.MAX_TOPUP_PAISE)}.")
     try:
         with tx() as conn:
-            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,0,0)",
-                               (form["email"], security.hash_password(secrets.token_urlsafe(32)), form["name"], form["org"] or None, form["role"], num, cc))
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,1,0)",
+                               (form["email"], security.hash_password(password), form["name"], form["org"] or None, form["role"], num, cc))
             uid = cur.lastrowid
     except Exception as e:
         if "UNIQUE" in str(e):
@@ -769,6 +772,32 @@ def customer_credit(request: Request, uid: int, amount: str = Form(""), reason: 
     return finish(RedirectResponse(f"/admin/customers/{uid}?done=credited", status_code=303), u)
 
 
+@router.post("/admin/customers/{uid}/password")
+def customer_password(request: Request, uid: int, password: str = Form(""), csrf: str = Form("")):
+    """Set a new password for a customer who forgot theirs, or whose account pre-dates passwords. Signs them out everywhere.
+    Admin and test accounts are excluded: their passwords are changed on the server."""
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    if not security.check_csrf(csrf, f"adm{u['id']}"):
+        return _customer_view(request, u, uid, 400, "Your session expired. Please reload and try again.")
+    with db() as c:
+        cu = c.execute("SELECT id, email, name, is_admin, is_master, deleted_at FROM users WHERE id=?", (uid,)).fetchone()
+    if not cu:
+        return _customer_view(request, u, uid)
+    if cu["deleted_at"]:
+        return _customer_view(request, u, uid, 409, "This customer was deleted.")
+    if cu["is_admin"] or cu["is_master"]:
+        return _customer_view(request, u, uid, 403, "Admin and test passwords are changed on the server, not here.")
+    problem = security.password_problem(password, cu["email"], cu["name"])
+    if problem:
+        return _customer_view(request, u, uid, 422, problem)
+    with tx() as conn:
+        conn.execute("UPDATE users SET password_hash=?, has_password=1, session_epoch=session_epoch+1 WHERE id=?", (security.hash_password(password), uid))
+    audit(request, u["id"], "admin_set_customer_password", str(uid))
+    return finish(RedirectResponse(f"/admin/customers/{uid}?done=password", status_code=303), u)
+
+
 def _unlink_reports(paths):
     root = config.REPORT_DIR.resolve()
     for p in paths:
@@ -804,7 +833,6 @@ def customer_delete(request: Request, uid: int, confirm: str = Form(""), csrf: s
         files = [r["xlsx_path"] for r in conn.execute("SELECT xlsx_path FROM reports WHERE user_id=?", (uid,))]
         conn.execute("DELETE FROM reports WHERE user_id=?", (uid,))
         conn.execute("DELETE FROM coupon_redemptions WHERE user_id=? AND status='reserved'", (uid,))
-        conn.execute("DELETE FROM otps WHERE email=? OR mobile=? OR mobile=?", (cu["email"], cu["email"], cu["mobile"] or ""))
         history = (conn.execute("SELECT COUNT(*) FROM payments WHERE user_id=?", (uid,)).fetchone()[0]
                    + conn.execute("SELECT COUNT(*) FROM wallet_ledger WHERE user_id=?", (uid,)).fetchone()[0]
                    + conn.execute("SELECT COUNT(*) FROM coupon_redemptions WHERE user_id=?", (uid,)).fetchone()[0])

@@ -18,7 +18,6 @@ _ITER = 240_000
 _ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="session-v1")
 _csrf_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="csrf-v1")
 _mfa_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="mfa-v1")
-_otp_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="otp-v1")
 _admin_ser = URLSafeTimedSerializer(config.SECRET_KEY, salt="admin-session-v1")      # a different salt: a customer cookie can never be read as an admin one
 
 
@@ -127,18 +126,6 @@ def read_mfa_token(token: str | None) -> int | None:
         return None
 
 
-def make_otp_token(otp_id: int) -> str:
-    return _otp_ser.dumps({"o": otp_id})
-
-
-def read_otp_token(token: str | None) -> int | None:
-    if not token:
-        return None
-    try:
-        return int(_otp_ser.loads(token, max_age=1800)["o"])
-    except (BadSignature, SignatureExpired, KeyError, ValueError):
-        return None
-
 
 def make_csrf(scope: str) -> str:
     """scope = 'anon' for logged-out forms, or the user id for logged-in forms."""
@@ -181,3 +168,25 @@ topup_throttle = Throttle(limit=15, window_s=3600)       # new payment orders pe
 utr_throttle = Throttle(limit=10, window_s=3600)         # reference-number submissions per user per hour
 signup_throttle = Throttle(limit=10, window_s=3600)
 admin_throttle = Throttle(limit=5, window_s=900)           # admin sign-in attempts per address and email in 15 minutes
+
+
+_COMMON_PASSWORDS = {"password", "password1", "password123", "passw0rd", "12345678", "123456789", "1234567890", "qwertyui", "qwerty123", "qwertyuiop", "iloveyou", "admin123",
+                     "welcome1", "welcome123", "abc12345", "11111111", "00000000", "letmein123", "changeme", "banksview", "banksview1", "india1234", "india@123", "test1234"}
+
+
+def password_problem(pw: str, email: str = "", name: str = "") -> str | None:
+    """A message for a password we will not accept, or None. Length matters most; the rest only stops the obvious choices."""
+    if len(pw) < 8:
+        return "Use at least 8 characters for your password."
+    if len(pw) > 128:
+        return "That password is too long. Use 128 characters or fewer."
+    low = pw.lower()
+    if low in _COMMON_PASSWORDS or len(set(low)) < 4:
+        return "That password is too easy to guess. Choose something less common."
+    local = (email or "").split("@")[0].lower()
+    if low == (email or "").lower() or (len(local) >= 4 and local in low):
+        return "Your password should not contain your email address."
+    first = (name or "").split()[0].lower() if (name or "").split() else ""
+    if len(first) >= 4 and first in low:
+        return "Your password should not contain your name."
+    return None

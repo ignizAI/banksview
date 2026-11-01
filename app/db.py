@@ -105,19 +105,6 @@ CREATE TABLE IF NOT EXISTS admin_sessions (  -- one row per admin sign-in: when 
     user_agent TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_admin_sessions_user ON admin_sessions(user_id, started_at);
-CREATE TABLE IF NOT EXISTS otps (            -- one-time codes sent to a mobile number (stored hashed)
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    purpose TEXT NOT NULL,                    -- signup | login
-    mobile TEXT NOT NULL,                     -- recipient key: the email address the code was sent to
-    email TEXT,
-    payload TEXT,                             -- signup details held until the number is verified
-    code_hash TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    expires_at INTEGER NOT NULL,              -- unix seconds
-    consumed INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS ix_otps_mobile ON otps(mobile, created_at);
 CREATE TABLE IF NOT EXISTS coupons (         -- created only by a master account
     code TEXT PRIMARY KEY,
     percent INTEGER NOT NULL,
@@ -169,6 +156,7 @@ def init_db() -> None:
     conn = connect()
     try:
         conn.executescript(SCHEMA)
+        conn.execute("DROP TABLE IF EXISTS otps")        # sign-in codes were removed: accounts use email and password
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
         for col, ddl in (("is_master", "INTEGER NOT NULL DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER NOT NULL DEFAULT 0"),
                          ("has_password", "INTEGER NOT NULL DEFAULT 1"), ("mobile_verified", "INTEGER NOT NULL DEFAULT 0"),

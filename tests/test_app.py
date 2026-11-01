@@ -13,100 +13,76 @@ GOOD = render_statement(ROWS, OPEN)
 
 # ----------------------------------------------------------------------------- accounts
 def test_signup_login_logout(client):
-    from app import otp
+    from conftest import PASSWORD
+    from app.db import db
     tok = csrf_from(client.get("/signup").text)
-    base = {"name": "A", "email": "a@b.co", "mobile": "9812345678", "role": "agent", "csrf": tok, "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
+    base = {"name": "Asha Rao", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "agent", "password": PASSWORD, "confirm": PASSWORD,
+            "csrf": tok, "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
     assert "valid email" in client.post("/signup", data={**base, "email": "nope"}).text
     assert "10-digit" in client.post("/signup", data={**base, "mobile": "12345"}).text
     assert client.post("/signup", data={**base, "role": "boss"}).status_code == 422
     assert client.post("/signup", data={**base, "csrf": "x"}).status_code == 400
-    # nothing is created until the code is verified
-    assert client.post("/signup", data=base, follow_redirects=False).status_code == 303
-    from app.db import db
+    assert client.post("/signup", data={**base, "confirm": "something-else-1"}).status_code == 422       # passwords differ
+    assert client.post("/signup", data={**base, "password": "short", "confirm": "short"}).status_code == 422
+    assert client.post("/signup", data={**base, "password": "password123", "confirm": "password123"}).status_code == 422   # too common
+    assert client.post("/signup", data={k: v for k, v in base.items() if k != "agree_terms"}).status_code == 422
     with db() as c:
         assert c.execute("SELECT COUNT(*) n FROM users").fetchone()["n"] == 0
-    page = client.get("/verify")
-    assert "a**@b.co" in page.text
-    wrong = client.post("/verify", data={"code": "000000" if otp.LAST["a@b.co"] != "000000" else "111111", "csrf": csrf_from(page.text)})
-    assert wrong.status_code == 401
-    ok = client.post("/verify", data={"code": otp.LAST["a@b.co"], "csrf": csrf_from(page.text)}, follow_redirects=False)
+    ok = client.post("/signup", data=base, follow_redirects=False)
     assert ok.status_code == 303 and ok.headers["location"] == "/dashboard" and "sid" in ok.cookies
     with db() as c:
-        u = c.execute("SELECT mobile, mobile_verified, has_password FROM users").fetchone()
-    assert (u["mobile"], u["mobile_verified"], u["has_password"]) == ("9812345678", 0, 0)
+        u = c.execute("SELECT mobile, has_password, password_hash FROM users").fetchone()
+    assert (u["mobile"], u["has_password"]) == ("9812345678", 1) and PASSWORD not in u["password_hash"]
     assert client.get("/dashboard").status_code == 200
     out = client.post("/logout", data={"csrf": csrf_from(client.get("/dashboard").text)}, follow_redirects=False)
     assert out.status_code == 303
     client.cookies.clear()
     assert client.get("/dashboard", follow_redirects=False).status_code == 303
-    # a second sign-up with the same email or mobile is refused
+    # the same email or mobile cannot sign up twice
     assert signup_otp(client, mobile="9812345678", email="other@b.co").status_code == 409
     assert signup_otp(client, mobile="9000000001", email="a@b.co").status_code == 409
-    # sign in: the email must belong to an account
-    r = client.get("/login")
-    nomatch = client.post("/login", data={"email": "wrong@b.co", "csrf": csrf_from(r.text)})
-    assert nomatch.status_code == 401
-    assert otp_login(client, email="a@b.co").status_code == 303
+    # sign in: email + password, one uniform error
+    wrong_pw = otp_login(client, email="a@b.co", password="not-the-password-1")
+    unknown = otp_login(client, email="wrong@b.co")
+    assert wrong_pw.status_code == unknown.status_code == 401
+    assert "Email or password is incorrect" in wrong_pw.text and "Email or password is incorrect" in unknown.text
+    assert otp_login(client, email="A@B.co").status_code == 303                       # email is case-insensitive
     assert client.get("/dashboard").status_code == 200
 
 
-def test_otp_expiry_reuse_attempt_limit_and_resend(client, monkeypatch):
-    from app import otp
-    from app.db import db
-    monkeypatch.setattr(config, "OTP_RESEND_SECONDS", 30)
-    r = client.get("/signup")
-    data = {"name": "A", "email": "a@b.co", "mobile": "+91 98123 45678", "role": "dsa", "csrf": csrf_from(r.text), "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
-    client.post("/signup", data=data)
-    code = otp.LAST["a@b.co"]
-    page = client.get("/verify")
-    tok = csrf_from(page.text)
-    bad = "000000" if code != "000000" else "111111"
-    for _ in range(config.OTP_MAX_ATTEMPTS):
-        assert client.post("/verify", data={"code": bad, "csrf": tok}).status_code == 401
-    assert client.post("/verify", data={"code": code, "csrf": tok}).status_code == 429       # locked even with the right code
-    # resend is rate limited, then a fresh code works
-    assert client.post("/verify/resend", data={"csrf": tok}).status_code == 429
-    with db() as c:
-        c.execute("UPDATE otps SET created_at=created_at-3600")
-    assert client.post("/verify/resend", data={"csrf": tok}, follow_redirects=False).status_code == 303
-    page = client.get("/verify")
-    code2 = otp.LAST["a@b.co"]
-    # expired code is refused
-    with db() as c:
-        c.execute("UPDATE otps SET expires_at=0 WHERE id=(SELECT MAX(id) FROM otps)")
-    assert client.post("/verify", data={"code": code2, "csrf": csrf_from(page.text)}).status_code == 410
-    # a used code cannot be used twice
-    with db() as c:
-        c.execute("UPDATE otps SET created_at=created_at-3600")
-    client.post("/verify/resend", data={"csrf": tok})
-    page = client.get("/verify")
-    code3 = otp.LAST["a@b.co"]
-    pending = client.cookies.get("otp_pending")
-    assert client.post("/verify", data={"code": code3, "csrf": csrf_from(page.text)}, follow_redirects=False).status_code == 303
-    client.cookies.set("otp_pending", pending)
-    assert client.post("/verify", data={"code": code3, "csrf": csrf_from(page.text)}, follow_redirects=False).status_code == 410
+def test_old_code_pages_are_gone_and_staff_login_redirects(client):
+    assert client.get("/verify").status_code == 404
+    assert client.post("/verify/resend").status_code in (404, 405)
+    r = client.get("/staff/login", follow_redirects=False)
+    assert r.status_code in (302, 303, 307) and r.headers["location"] == "/login"
+    page = client.get("/login").text.lower()
+    assert "sign-in code" not in page and "6-digit" not in page and 'name="password"' in page
 
 
-def test_otp_stored_hashed_and_dev_provider_refused_in_production(client, monkeypatch):
-    from app import otp
+def test_account_without_password_cannot_sign_in(client):
     from app.db import db
-    client.post("/signup", data={"name": "A", "email": "a@b.co", "mobile": "9812345678", "role": "dsa", "csrf": csrf_from(client.get("/signup").text),
-                                 "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"})
+    from conftest import PASSWORD
+    assert signup_otp(client).status_code == 303
+    client.cookies.clear()
     with db() as c:
-        h = c.execute("SELECT code_hash FROM otps").fetchone()["code_hash"]
-    assert otp.LAST["a@b.co"] not in h and len(h) == 64
-    monkeypatch.setattr(config, "APP_ENV", "production")
-    monkeypatch.setattr(config, "OTP_PROVIDER", "dev")
-    monkeypatch.setattr(config, "PAYMENT_MODE", "razorpay")
-    monkeypatch.setattr(config, "SECRET_KEY", "a-long-production-secret")
-    with pytest.raises(RuntimeError, match="OTP_PROVIDER"):
-        config.check_production_safety()
+        c.execute("UPDATE users SET has_password=0")          # an account from the code-era
+    assert otp_login(client).status_code == 401
+
+
+def test_password_rules():
+    from app import security
+    assert security.password_problem("correct-horse-battery", "a@b.co", "Asha")  is None
+    assert security.password_problem("short1", "a@b.co", "Asha")
+    assert security.password_problem("password123", "a@b.co", "Asha")
+    assert security.password_problem("x" * 129, "a@b.co", "Asha")
+    assert security.password_problem("aaaaaaaaaa", "a@b.co", "Asha")
+    assert security.password_problem("ashleyrao-2024", "ashleyrao@b.co", "Asha")      # contains the email name
 
 
 def test_login_throttle(client):
     r = client.get("/login")
     tok = csrf_from(r.text)
-    codes = [client.post("/login", data={"email": "x@y.co", "csrf": tok}).status_code for _ in range(12)]
+    codes = [client.post("/login", data={"email": "x@y.co", "password": "whatever-123", "csrf": tok}).status_code for _ in range(12)]
     assert codes[0] == 401 and codes[-1] == 429
 
 
@@ -564,8 +540,8 @@ def test_security_headers_and_no_store(client):
 
 # ----------------------------------------------------------------------------- password hashing and two-factor sign-in
 def _staff_login(client, password="correct-horse"):
-    lg = client.get("/staff/login")
-    return client.post("/staff/login", data={"email": "staff@example.com", "password": password, "csrf": csrf_from(lg.text)}, follow_redirects=False)
+    lg = client.get("/login")
+    return client.post("/login", data={"email": "staff@example.com", "password": password, "csrf": csrf_from(lg.text)}, follow_redirects=False)
 
 
 def test_argon2id_hashing_and_pbkdf2_upgrade(client):
@@ -579,13 +555,6 @@ def test_argon2id_hashing_and_pbkdf2_upgrade(client):
     assert _staff_login(client).status_code == 303
     with db() as c:
         assert c.execute("SELECT password_hash FROM users").fetchone()["password_hash"].startswith("$argon2id$")
-
-
-def test_otp_accounts_cannot_use_staff_password_login(client):
-    from app.db import db
-    assert signup_otp(client, email="staff@example.com").status_code == 303
-    client.cookies.clear()
-    assert _staff_login(client).status_code == 401
 
 
 def test_totp_matches_rfc6238_vector():
@@ -625,7 +594,7 @@ def test_mfa_required_flow_for_staff_password_accounts(client, monkeypatch):
     assert ok.status_code == 303 and client.get("/dashboard", follow_redirects=False).status_code == 200
 
 
-def test_mfa_not_forced_on_mobile_otp_accounts(client, monkeypatch):
+def test_mfa_not_forced_on_customer_accounts(client, monkeypatch):
     monkeypatch.setattr(config, "MFA_REQUIRED", True)
     r = signup_otp(client)
     assert r.headers["location"] == "/dashboard"
@@ -853,12 +822,13 @@ def test_razorpay_order_charges_discounted_amount(user, monkeypatch):
 
 
 # ----------------------------------------------------------------------------- master creates customer accounts
-def test_master_creates_user_who_signs_in_by_otp(client):
+def test_master_creates_user_who_signs_in_with_password(client):
     _make_master(client)
     page = client.get("/admin/users")
     assert page.status_code == 200
-    data = {"name": "Ravi K", "email": "ravi@example.com", "mobile": "98111 22233", "role": "agent", "org": "RK Loans", "credit": "300", "csrf": csrf_from(page.text)}
+    data = {"name": "Ravi K", "email": "ravi@example.com", "mobile": "98111 22233", "role": "agent", "org": "RK Loans", "credit": "300", "password": "Welcome-pass-2024", "csrf": csrf_from(page.text)}
     assert client.post("/admin/users", data={**data, "email": "bad"}).status_code == 422
+    assert client.post("/admin/users", data={**data, "password": "abc"}).status_code == 422
     assert client.post("/admin/users", data={**data, "mobile": "123"}).status_code == 422
     ok = client.post("/admin/users", data=data)
     assert ok.status_code == 201 and "ravi@example.com" in ok.text
@@ -866,10 +836,10 @@ def test_master_creates_user_who_signs_in_by_otp(client):
     from app.db import db
     with db() as c:
         u = c.execute("SELECT balance_paise, has_password, mobile FROM users WHERE email='ravi@example.com'").fetchone()
-        assert (u["balance_paise"], u["has_password"], u["mobile"]) == (30000, 0, "9811122233")
+        assert (u["balance_paise"], u["has_password"], u["mobile"]) == (30000, 1, "9811122233")
         assert c.execute("SELECT COUNT(*) n FROM consents WHERE user_id=(SELECT id FROM users WHERE email='ravi@example.com')").fetchone()["n"] == 0
     client.cookies.clear()
-    r = otp_login(client, email="ravi@example.com")
+    r = otp_login(client, email="ravi@example.com", password="Welcome-pass-2024")
     assert r.status_code == 303
     assert client.get("/dashboard", follow_redirects=False).headers["location"] == "/terms/accept"   # consent is the customer's own
 
@@ -933,9 +903,6 @@ def test_upi_mode_needs_upi_id(client, monkeypatch):
     monkeypatch.setattr(config, "PAYMENT_MODE", "upi_qr")
     monkeypatch.setattr(config, "UPI_ID", "")
     monkeypatch.setattr(config, "APP_ENV", "production")
-    monkeypatch.setattr(config, "OTP_PROVIDER", "email")
-    monkeypatch.setattr(config, "SMTP_HOST", "smtp.x.co")
-    monkeypatch.setattr(config, "SMTP_FROM", "a@x.co")
     monkeypatch.setattr(config, "SECRET_KEY", "a-long-production-secret")
     monkeypatch.setattr(config, "ALLOWED_HOSTS", ["banksview.com"])
     with pytest.raises(RuntimeError, match="UPI_ID"):
@@ -949,14 +916,14 @@ def test_privileged_customer_pays_own_rate(client):
     with db() as c:
         c.execute("UPDATE users SET is_master=1 WHERE email='adm@example.com'")
     page = client.get("/admin/users")
-    base = {"name": "Priv One", "email": "p1@example.com", "mobile": "9866666666", "role": "agent", "credit": "100", "privileged": "1", "csrf": csrf_from(page.text)}
+    base = {"name": "Priv One", "email": "p1@example.com", "mobile": "9866666666", "role": "agent", "credit": "100", "privileged": "1", "password": "Welcome-pass-2024", "csrf": csrf_from(page.text)}
     assert client.post("/admin/users", data={**base, "rate": "500"}).status_code == 422       # above the standard price
     assert client.post("/admin/users", data=base).status_code == 201                          # blank rate -> default Rs 25
     with db() as c:
         u = c.execute("SELECT privileged, price_paise, balance_paise FROM users WHERE email='p1@example.com'").fetchone()
     assert (u["privileged"], u["price_paise"], u["balance_paise"]) == (1, 2500, 10000)
     client.cookies.clear()
-    assert otp_login(client, email="p1@example.com").status_code == 303
+    assert otp_login(client, email="p1@example.com", password="Welcome-pass-2024").status_code == 303
     pg = client.get("/terms/accept")
     client.post("/terms/accept", data={"csrf": csrf_from(pg.text), "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"})
     r = client.get("/wallet", follow_redirects=True)
@@ -1300,7 +1267,7 @@ def test_logo_and_favicons_are_served_and_linked(client):
 # ----------------------------------------------------------------------------- phone numbers: digits only, with a country code
 def _signup_data(client, **over):
     r = client.get("/signup")
-    data = {"name": "A", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "dsa", "csrf": csrf_from(r.text),
+    data = {"name": "A", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "dsa", "password": "correct-horse-battery", "confirm": "correct-horse-battery", "csrf": csrf_from(r.text),
             "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
     data.update(over)
     return data
@@ -1320,25 +1287,24 @@ def test_signup_form_has_a_country_code_and_a_digits_only_number(client):
                                                 ("+971", "50 123 4567", ("+971", "501234567")), ("+971", "+971501234567", ("+971", "501234567")),
                                                 ("+44", "7700 900123", ("+44", "7700900123")), ("971", "501234567", ("+971", "501234567"))])
 def test_parse_phone_accepts_and_cleans(country, raw, expect):
-    from app import otp
-    assert otp.parse_phone(country, raw) == expect
+    from app import phone
+    assert phone.parse_phone(country, raw) == expect
 
 
 @pytest.mark.parametrize("country,raw", [("+91", "12345"), ("+91", "5812345678"), ("+91", ""), ("+971", "123"), ("+971", "1" * 16), ("+999", "9812345678"), ("+91", "abcdefghij")])
 def test_parse_phone_rejects(country, raw):
-    from app import otp
-    with pytest.raises(otp.PhoneError):
-        otp.parse_phone(country, raw)
+    from app import phone
+    with pytest.raises(phone.PhoneError):
+        phone.parse_phone(country, raw)
 
 
 def test_signup_stores_country_code_and_number_without_spaces(client):
     r = client.post("/signup", data=_signup_data(client, mobile="50 123 4567", country="+971"), follow_redirects=False)
     assert r.status_code == 303
-    import json
     from app.db import db
     with db() as c:
-        row = c.execute("SELECT payload FROM otps").fetchone()
-    assert '"mobile": "501234567"' in row["payload"] and '"country": "+971"' in row["payload"] and " " not in json.loads(row["payload"])["mobile"]
+        row = c.execute("SELECT mobile, country_code FROM users").fetchone()
+    assert (row["mobile"], row["country_code"]) == ("501234567", "+971")
 
 
 def test_error_messages_for_bad_numbers(client):
@@ -1352,6 +1318,7 @@ def test_same_number_is_allowed_in_different_countries_but_not_twice(client):
     with tx() as c:
         c.execute("INSERT INTO users(email,password_hash,name,role,mobile,country_code) VALUES ('x@y.co','h','X','dsa','9876501234','+971')")
     assert client.post("/signup", data=_signup_data(client, mobile="9876501234", country="+91"), follow_redirects=False).status_code == 303          # same digits, different country
+    client.cookies.clear()
     assert client.post("/signup", data=_signup_data(client, email="n@y.co", mobile="987 650 1234", country="+971"), follow_redirects=False).status_code == 409   # same country and number
 
 
