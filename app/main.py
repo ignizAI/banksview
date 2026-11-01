@@ -113,7 +113,7 @@ templates.env.filters["paise"] = fmt_paise
 _parts = re.findall(r'[A-Z][a-z0-9]*|[a-z0-9]+', config.BRAND)
 _head, _tail = ''.join(_parts[:-1]) or config.BRAND, (_parts[-1] if len(_parts) > 1 else '')
 templates.env.globals.update(BRAND=config.BRAND, BRAND_HEAD=_head, BRAND_TAIL=_tail, PRICE=fmt_paise(config.PRICE_PAISE), MIN_TOPUP=fmt_paise(config.MIN_TOPUP_PAISE),
-                             MIN_TOPUP_RUPEES=config.MIN_TOPUP_PAISE // 100, PRIV_PRICE=config.PRIVILEGED_PRICE_PAISE, MAX_MB=config.MAX_UPLOAD_MB, METRIC_COUNT=len(metrics.REGISTRY), DUP_DAYS=config.DUPLICATE_WINDOW_DAYS, RETAIN_DAYS=config.REPORT_RETENTION_DAYS, PAYMENT_MODE=config.PAYMENT_MODE,
+                             MIN_TOPUP_RUPEES=config.MIN_TOPUP_PAISE // 100, PRIV_PRICE=config.PRIVILEGED_PRICE_PAISE, MAX_MB=config.MAX_UPLOAD_MB, METRIC_COUNT=len(metrics.REGISTRY), DUP_DAYS=config.DUPLICATE_WINDOW_DAYS, RETAIN_DAYS=config.REPORT_RETENTION_DAYS, PAYMENT_MODE=config.PAYMENT_MODE, SUPPORT_PHONE=config.SUPPORT_PHONE,
                              BANKS=banks.SUPPORTED_BANKS, BANK_COUNT=banks.BANK_COUNT, COMPANY_NAME=config.COMPANY_NAME, COMPANY_ADDRESS=config.COMPANY_ADDRESS,
                              GRIEVANCE_EMAIL=config.GRIEVANCE_EMAIL, GRIEVANCE_OFFICER=config.GRIEVANCE_OFFICER, TERMS_VERSION=config.TERMS_VERSION,
                              CAP_MONTHS=config.LIABILITY_CAP_MONTHS, JURISDICTION=config.JURISDICTION_CITY, MFA_REQUIRED=config.MFA_REQUIRED, COUPON_PERCENT=config.COUPON_PERCENT, COUPONS_ENABLED=config.COUPONS_ENABLED, COUNTRIES=phone.COUNTRIES)
@@ -203,6 +203,7 @@ def render(request: Request, name: str, user=None, status: int = 200, **ctx):
     scope = str(user["id"]) if user else "anon"
     flash = FLASH.get(request.query_params.get("m", ""))
     ctx.setdefault("flash", flash)
+    ctx.setdefault("PAYMENT_MODE", config.PAYMENT_MODE)
     if user and user.get("price") and user["price"] != config.PRICE_PAISE and name in ("dashboard.html", "wallet.html"):
         ctx["PRICE"] = fmt_paise(user["price"])     # a privileged customer sees their own rate
     return templates.TemplateResponse(request, name, {"user": user, "csrf": security.make_csrf(scope), **ctx}, status_code=status)
@@ -301,7 +302,7 @@ def signup(request: Request, name: str = Form(""), email: str = Form(""), org: s
             return fail("An account with this email or mobile number already exists. Sign in instead.", 409)
         raise
     audit(request, uid, "signup", config.TERMS_VERSION)
-    return set_session(redirect("/dashboard"), uid)
+    return set_session(redirect("/wallet" if config.PAYMENT_MODE == "contact_admin" else "/dashboard"), uid)
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -644,11 +645,11 @@ def report_download(request: Request, rid: str):
 
 
 # ----------------------------------------------------------------------------- wallet & payments
-def _wallet_page(request: Request, user, error=None, status: int = 200):
+def _wallet_page(request: Request, user, error=None, status: int = 200, notice=None):
     with db() as conn:
         hist = wallet.history(conn, user["id"])
         packs = wallet.packs_for(conn, user["id"], user["price"])
-    return render(request, "wallet.html", user, status=status, history=hist, error=error, packs=packs,
+    return render(request, "wallet.html", user, status=status, history=hist, error=error, notice=notice, packs=packs,
                   reports_possible=user["balance_paise"] // user["price"])
 
 
@@ -704,6 +705,9 @@ def topup(request: Request, pack: str = Form(""), coupon: str = Form(""), csrf: 
     with db() as conn:
         if pk["first_only"] and not wallet.starter_available(conn, user["id"]):
             return fail("The first-report offer is only for your first report and can be used once.")
+    if config.PAYMENT_MODE == "contact_admin":
+        audit(request, user["id"], "plan_requested", pk["id"])
+        return _wallet_page(request, user, notice=f"You chose {pk['name']} ({fmt_paise(pk['paise'])}). Online payment is not switched on yet, so please contact the admin to pay. Your wallet is credited as soon as the admin confirms your payment.")
     try:
         order = payments.create_order(user["id"], pk["paise"], coupon.strip() or None, pack=pk["id"])
     except payments.PaymentError as e:

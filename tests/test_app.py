@@ -1334,3 +1334,18 @@ def test_existing_accounts_get_the_indian_code_on_upgrade(tmp_path, monkeypatch)
     dbm.init_db()
     with dbm.db() as c:
         assert c.execute("SELECT country_code FROM users").fetchone()[0] == "+91"
+
+
+def test_contact_admin_mode_lets_new_user_pick_a_plan_without_paying(client, monkeypatch):
+    monkeypatch.setattr(config, "PAYMENT_MODE", "contact_admin")
+    r = signup_otp(client)
+    assert r.status_code == 303 and r.headers["location"] == "/wallet"
+    page = client.get("/wallet")
+    assert "contact the admin" in page.text and "Payments: contact admin" in page.text
+    r = client.post("/wallet/topup", data={"pack": "p250", "csrf": csrf_from(page.text)}, follow_redirects=False)
+    assert r.status_code == 200 and "contact the admin to pay" in r.text
+    from app.db import db
+    with db() as c:
+        assert c.execute("SELECT COUNT(*) FROM payments").fetchone()[0] == 0
+        assert c.execute("SELECT ref FROM audit_log WHERE event='plan_requested'").fetchone()[0] == "p250"
+    assert balance(client) == 0
