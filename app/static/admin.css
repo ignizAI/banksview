@@ -1,29 +1,11 @@
-/* Admin console. Separate from the customer site on purpose: its own tokens, nothing shared except the typeface. */
+/* Admin console. Always a light theme. Separate from the customer site on purpose: its own tokens, nothing shared except the typeface. */
 :root{
   color-scheme:light;
-  --bg:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;
+  --bg:#f1f5fb;--surface:#ffffff;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;
   --grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,.10);--hover:rgba(11,11,11,.04);
   --s1:#2a78d6;--s2:#eb6834;--accent:#256abf;--accent-ink:#fff;
   --good:#006300;--warn:#8a5a00;--bad:#b32d2d;
   --good-bg:rgba(12,163,12,.12);--warn-bg:rgba(250,178,25,.20);--bad-bg:rgba(208,59,59,.12);
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    color-scheme:dark;
-    --bg:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;
-    --grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);--hover:rgba(255,255,255,.05);
-    --s1:#3987e5;--s2:#d95926;--accent:#3987e5;--accent-ink:#0b0b0b;
-    --good:#0ca30c;--warn:#fab219;--bad:#ec6b6b;
-    --good-bg:rgba(12,163,12,.18);--warn-bg:rgba(250,178,25,.16);--bad-bg:rgba(236,107,107,.16);
-  }
-}
-:root[data-theme="dark"]{
-  color-scheme:dark;
-  --bg:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;
-  --grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,.10);--hover:rgba(255,255,255,.05);
-  --s1:#3987e5;--s2:#d95926;--accent:#3987e5;--accent-ink:#0b0b0b;
-  --good:#0ca30c;--warn:#fab219;--bad:#ec6b6b;
-  --good-bg:rgba(12,163,12,.18);--warn-bg:rgba(250,178,25,.16);--bad-bg:rgba(236,107,107,.16);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -105,6 +87,10 @@ body.signin{display:grid;place-items:center;min-height:100vh;padding:20px}
 .signbox h1{font-size:20px}.signbox .logo{display:block;margin-bottom:18px}
 .field{margin:0 0 14px}.field label{display:block;font-weight:600;margin:0 0 5px;font-size:13px}.field input{width:100%}.field small{color:var(--muted)}
 .banner{border-radius:10px;padding:10px 12px;margin:0 0 14px;background:var(--bad-bg);color:var(--bad);font-weight:500}
+.banner.ok{background:var(--good-bg);color:var(--good)}.banner.warn{background:var(--warn-bg);color:var(--warn)}
+.field select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:7px 11px;width:100%}
+.btn.danger{background:var(--bad);color:#fff;border-color:transparent}.btn.danger:hover{filter:brightness(1.08)}.btn[disabled]{opacity:.6;cursor:default}
+.card.danger{border-color:rgba(179,45,45,.35)}
 .fine{color:var(--muted);font-size:12.5px;margin:16px 0 0}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media print{.bar,.filters,.pager{display:none}}

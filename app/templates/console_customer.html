@@ -1,8 +1,12 @@
 {% extends "console_base.html" %}{% from "console_macros.html" import status_pill %}{% block title %}{{ c.name }}{% endblock %}
 {% block body %}
 <p style="margin:0 0 6px"><a href="/admin/customers">&larr; All customers</a></p>
-<h1>{{ c.name }}{% if c.is_master %} <span class="pill">test account</span>{% endif %}{% if c.is_admin %} <span class="pill">admin</span>{% endif %}</h1>
-<p class="sub">{{ c.email }}{% if c.mobile %} · {{ c.mobile }}{% endif %}</p>
+<h1>{{ c.name }}{% if c.deleted_at %} <span class="pill bad">deleted</span>{% endif %}{% if c.is_master %} <span class="pill">test account</span>{% endif %}{% if c.is_admin %} <span class="pill">admin</span>{% endif %}</h1>
+<p class="sub">{% if c.deleted_at %}Deleted {{ c.deleted_at | ist }}{% else %}{{ c.email }}{% if c.mobile %} · {{ c.mobile }}{% endif %}{% endif %}</p>
+{% if done == 'created' %}<div class="banner ok" role="status">Customer added. They sign in with the code sent to their email and accept the Terms on first sign-in.</div>{% endif %}
+{% if done == 'credited' %}<div class="banner ok" role="status">Credit added. The new balance is shown below and the entry is in the wallet history.</div>{% endif %}
+{% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+{% if c.deleted_at %}<div class="banner warn">This customer was deleted. Personal details and reports were erased; payments and wallet history are kept as financial records.</div>{% endif %}
 
 <section class="kpis">
   <div class="kpi"><div class="l">Wallet balance</div><div class="v">{{ c.balance_paise | paise }}</div><div class="d">{{ c.held_paise | paise }} reserved</div></div>
@@ -11,6 +15,27 @@
   <div class="kpi"><div class="l">Statements uploaded</div><div class="v">{{ stats.up }}</div><div class="d">{{ stats.done }} generated · {{ stats.failed }} failed</div></div>
   <div class="kpi"><div class="l">Excel downloads</div><div class="v">{{ stats.dl }}</div><div class="d">{% set nrep = reps | selectattr('download_count') | list | length %}across {{ nrep }} report{{ '' if nrep == 1 else 's' }}</div></div>
 </section>
+
+{% if not c.deleted_at %}
+<div class="grid2">
+  <section class="card"><h2>Add credit to wallet <small>up to {{ max_credit }} each time</small></h2>
+    <form method="post" action="/admin/customers/{{ c.id }}/credit" onsubmit="this.querySelector('button').disabled=true">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="amt">Amount (Rs)</label><input id="amt" name="amount" inputmode="decimal" placeholder="500" value="{{ form.amount or '' }}" required autocomplete="off"></div>
+      <div class="field"><label for="why">Reason</label><input id="why" name="reason" maxlength="120" placeholder="e.g. offline payment received, refund, goodwill" value="{{ form.reason or '' }}" required autocomplete="off"><small>Saved in the wallet history and the audit log.</small></div>
+      <button class="btn primary">Add credit</button>
+    </form></section>
+  <section class="card danger"><h2>Delete customer</h2>
+    {% if protected %}<p class="muted">Admin, test and your own accounts cannot be deleted here.</p>
+    {% else %}
+    <p class="muted" style="margin-top:0">Removes the name, email, mobile, company, sign-in and every uploaded report. Payments and wallet history are kept as financial records and cannot be deleted; this customer's balance of {{ c.balance_paise | paise }} is lost. This cannot be undone.</p>
+    <form method="post" action="/admin/customers/{{ c.id }}/delete" onsubmit="return confirm('Delete this customer permanently?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="cf">Type <b>{{ c.email }}</b> to confirm</label><input id="cf" name="confirm" autocomplete="off" required></div>
+      <button class="btn danger">Delete customer</button>
+    </form>{% endif %}</section>
+</div>
+{% endif %}
 
 <div class="grid2">
   <section class="card"><h2>Profile</h2><dl class="kv">

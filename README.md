@@ -42,7 +42,7 @@ Disabled when `APP_ENV=production` unless `ALLOW_MASTER=1`. It can only be creat
 
 ## Admin console (analytics and records)
 
-A separate sign-in at `/admin/login` (not linked from the public site). It shows an analytics dashboard (sign-ups, revenue, reports generated and failed, downloads, customer journey), every customer with wallet, spend, uploads and downloads, payment history, reports with download counts, and read-only views and CSV exports of the main tables. It never shows password hashes, authenticator secrets, sign-in codes, borrower names, file names or statement contents.
+A separate sign-in at `/admin/login` (not linked from the public site). It shows an analytics dashboard (sign-ups, revenue, reports generated and failed, downloads, customer journey), every customer with wallet, spend, uploads and downloads, payment history, reports with download counts, and read-only views and CSV exports of the main tables. Admins can also add a customer, add credit to a wallet (a reason is required) and delete a customer. A customer with payments or wallet history is erased in place (name, email, mobile, company, reports) while payment and wallet records stay, because those cannot be deleted. Every action is audit-logged. It never shows password hashes, authenticator secrets, sign-in codes, borrower names, file names or statement contents.
 
 ```
 python -m app.cli admin you@example.com 'a-passphrase-of-12-or-more-characters'   # create, or promote an existing account

@@ -4,7 +4,8 @@ reports and downloads, plus CSV export.
 Design rules
 - A separate cookie (asid, path /admin, SameSite=Strict, shorter idle limit) from the customer session, so a customer
   cookie is never an admin cookie. Only accounts with is_admin=1 get in; create one with  python -m app.cli admin EMAIL PASSWORD.
-- Read-only. Nothing here changes a wallet, a payment or a report.
+- Viewing is read-only. The only changes an admin can make are: add a customer, add credit to a wallet, and delete a customer.
+  Each one needs a fresh form token, is limited, and is written to the audit log. Payments and wallet history are never edited.
 - Never shown: password hashes, authenticator secrets, sign-in codes, borrower names, statement contents, file names, file paths.
 - Every sign-in, customer view and export is written to the audit log.
 """
@@ -13,18 +14,20 @@ from __future__ import annotations
 import csv
 import io
 import math
+import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from html import escape
+from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse, Response
 from markupsafe import Markup
 
-from . import config, security
-from .db import db
-from .main import APP_DIR, _group, audit, fmt_paise, ip_of, templates
+from . import config, otp, security, wallet
+from .db import db, tx
+from .main import APP_DIR, EMAIL_RX, ROLES, _group, audit, fmt_paise, ip_of, templates
 
 router = APIRouter()
 COOKIE = "asid"
@@ -150,7 +153,6 @@ def logout(request: Request, csrf: str = Form("")):
     resp = finish(RedirectResponse("/admin/login", status_code=303))
     resp.delete_cookie(COOKIE, path="/admin")
     if u and security.check_csrf(csrf, f"adm{u['id']}"):
-        from .db import tx
         with tx() as conn:
             conn.execute("UPDATE users SET session_epoch = session_epoch + 1 WHERE id=?", (u["id"],))     # kills every older cookie
         audit(request, u["id"], "admin_logout")
@@ -253,9 +255,9 @@ PU = "FROM payments p JOIN users u ON u.id=p.user_id"
 RU = "FROM reports r JOIN users u ON u.id=r.user_id"
 
 Q = {
-    "users_total": f"SELECT COUNT(*) FROM users u WHERE {T}",
-    "users_since": f"SELECT COUNT(*) FROM users u WHERE {T} AND u.created_at>=:since",
-    "users_since7": f"SELECT COUNT(*) FROM users u WHERE {T} AND u.created_at>=:since7",
+    "users_total": f"SELECT COUNT(*) FROM users u WHERE {T} AND u.deleted_at IS NULL",
+    "users_since": f"SELECT COUNT(*) FROM users u WHERE {T} AND u.deleted_at IS NULL AND u.created_at>=:since",
+    "users_since7": f"SELECT COUNT(*) FROM users u WHERE {T} AND u.deleted_at IS NULL AND u.created_at>=:since7",
     "paying": f"SELECT COUNT(DISTINCT p.user_id) {PU} WHERE p.status='paid' AND {T}",
     "revenue": f"SELECT COALESCE(SUM(p.amount_paise),0) {PU} WHERE p.status='paid' AND {T}",
     "revenue_since": f"SELECT COALESCE(SUM(p.amount_paise),0) {PU} WHERE p.status='paid' AND {T} AND p.created_at>=:since",
@@ -268,7 +270,7 @@ Q = {
     "f_uploaded": f"SELECT COUNT(DISTINCT r.user_id) {RU} WHERE {T}",
     "f_done": f"SELECT COUNT(DISTINCT r.user_id) {RU} WHERE r.status='done' AND {T}",
     "f_downloaded": f"SELECT COUNT(DISTINCT r.user_id) {RU} WHERE r.download_count>0 AND {T}",
-    "d_signups": f"SELECT u.created_at t, 1 v FROM users u WHERE {T} AND u.created_at>=:since",
+    "d_signups": f"SELECT u.created_at t, 1 v FROM users u WHERE {T} AND u.deleted_at IS NULL AND u.created_at>=:since",
     "d_revenue": f"SELECT p.created_at t, p.amount_paise v {PU} WHERE p.status='paid' AND {T} AND p.created_at>=:since",
     "d_done": f"SELECT r.created_at t, 1 v {RU} WHERE r.status='done' AND {T} AND r.created_at>=:since",
     "d_failed": f"SELECT r.created_at t, 1 v {RU} WHERE r.status<>'done' AND {T} AND r.created_at>=:since",
@@ -276,11 +278,11 @@ Q = {
     "banks": f"SELECT COALESCE(r.bank,'Unknown') b, COUNT(*) n {RU} WHERE r.status='done' AND {T} AND r.created_at>=:since GROUP BY b ORDER BY n DESC LIMIT 8",
     "fails": f"SELECT COALESCE(r.error_code,'UNKNOWN') e, COUNT(*) n {RU} WHERE r.status='failed' AND {T} AND r.created_at>=:since GROUP BY e ORDER BY n DESC LIMIT 8",
     "packs": f"SELECT COALESCE(p.pack,'-') p, COUNT(*) n, SUM(p.amount_paise) s {PU} WHERE p.status='paid' AND {T} GROUP BY p ORDER BY n DESC LIMIT 8",
-    "roles": f"SELECT u.role role, COUNT(*) n FROM users u WHERE {T} GROUP BY u.role ORDER BY n DESC",
+    "roles": f"SELECT u.role role, COUNT(*) n FROM users u WHERE {T} AND u.deleted_at IS NULL GROUP BY u.role ORDER BY n DESC",
     "top": f"SELECT u.id, u.name, u.email, u.org, COALESCE(SUM(r.charged_paise),0) spent, COUNT(r.id) uploaded, COALESCE(SUM(r.status='done'),0) done, "
            f"COALESCE(SUM(r.download_count),0) dl FROM users u LEFT JOIN reports r ON r.user_id=u.id WHERE {T} GROUP BY u.id HAVING uploaded>0 "
            f"ORDER BY spent DESC, uploaded DESC LIMIT 8",
-    "recent_users": f"SELECT u.id, u.name, u.email, u.role, u.created_at FROM users u WHERE {T} ORDER BY u.id DESC LIMIT 8",
+    "recent_users": f"SELECT u.id, u.name, u.email, u.role, u.created_at FROM users u WHERE {T} AND u.deleted_at IS NULL ORDER BY u.id DESC LIMIT 8",
     "recent_pay": f"SELECT p.order_id, p.amount_paise, p.status, p.created_at, u.id uid, u.name {PU} WHERE {T} ORDER BY p.id DESC LIMIT 8",
 }
 
@@ -293,7 +295,7 @@ FROM users u
 LEFT JOIN (SELECT user_id, SUM(amount_paise) topped, COUNT(*) n FROM payments WHERE status='paid' GROUP BY user_id) p ON p.user_id=u.id
 LEFT JOIN (SELECT user_id, COUNT(*) up, SUM(status='done') done, SUM(status='failed') failed, SUM(charged_paise) spent, SUM(download_count) dl
            FROM reports GROUP BY user_id) r ON r.user_id=u.id
-WHERE {T}
+WHERE {T} AND u.deleted_at IS NULL
   AND (:q='' OR u.email LIKE :like ESCAPE '\\' OR u.name LIKE :like ESCAPE '\\' OR u.mobile LIKE :like ESCAPE '\\' OR u.org LIKE :like ESCAPE '\\')
 """
 CUSTOMER_COUNT = f"SELECT COUNT(*) FROM ({CUSTOMER_SQL})"
@@ -341,7 +343,7 @@ TABLE_NOTES = {
     "audit_log": "Who did what: sign-ins, uploads, views, downloads, admin actions.",
 }
 CUSTOMER_ONE = ("SELECT id, name, email, mobile, org, role, created_at, balance_paise, held_paise, privileged, price_paise, mfa_enabled, mobile_verified, "
-                "is_master, is_admin FROM users WHERE id=?")
+                "is_master, is_admin, deleted_at FROM users WHERE id=?")
 
 
 # ----------------------------------------------------------------------------- analytics
@@ -434,7 +436,7 @@ def _paging(total: int, pg: int) -> dict:
 
 
 @router.get("/admin/customers")
-def customers(request: Request, q: str = "", sort: str = "new", page_no: int = 1, test: int = 0):
+def customers(request: Request, q: str = "", sort: str = "new", page_no: int = 1, test: int = 0, done: str = ""):
     u = admin_user(request)
     if not u:
         return to_login()
@@ -444,14 +446,10 @@ def customers(request: Request, q: str = "", sort: str = "new", page_no: int = 1
     with db() as c:
         pg = _paging(c.execute(CUSTOMER_COUNT, args).fetchone()[0], page_no)
         rows = c.execute(CUSTOMER_PAGE[sort], {**args, "n": PER_PAGE, "o": pg["offset"]}).fetchall()
-    return page(request, "console_customers.html", u, rows=rows, pg=pg, q=q, sort=sort, test=test, nav="customers")
+    return page(request, "console_customers.html", u, rows=rows, pg=pg, q=q, sort=sort, test=test, done=done == "deleted", nav="customers")
 
 
-@router.get("/admin/customers/{uid}")
-def customer(request: Request, uid: int):
-    u = admin_user(request)
-    if not u:
-        return to_login()
+def _customer_view(request: Request, u, uid: int, code: int = 200, error=None, done=None, form=None):
     with db() as c:
         cu = c.execute(CUSTOMER_ONE, (uid,)).fetchone()
         if not cu:
@@ -466,8 +464,156 @@ def customer(request: Request, uid: int):
         ledger = c.execute("SELECT kind, amount_paise, balance_after_paise, ref, note, created_at FROM wallet_ledger WHERE user_id=? ORDER BY id DESC LIMIT 60", (uid,)).fetchall()
         consents = c.execute("SELECT kind, version, ip, accepted_at FROM consents WHERE user_id=? ORDER BY id DESC LIMIT 12", (uid,)).fetchall()
         acts = c.execute("SELECT event, ref, ip, created_at FROM audit_log WHERE user_id=? ORDER BY id DESC LIMIT 40", (uid,)).fetchall()
+    protected = bool(cu["is_admin"] or cu["is_master"] or cu["id"] == u["id"])
+    return page(request, "console_customer.html", u, code=code, c=cu, stats=stats, topped=topped, pays=pays, reps=reps, ledger=ledger, consents=consents, acts=acts,
+                error=error, done=done if done in ("created", "credited") else None, form=form or {}, protected=protected, nav="customers",
+                max_credit=fmt_paise(config.MAX_TOPUP_PAISE))
+
+
+@router.get("/admin/customers/new")
+def customer_new_page(request: Request):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    return page(request, "console_customer_new.html", u, error=None, form={}, roles=ROLES, max_credit=fmt_paise(config.MAX_TOPUP_PAISE), nav="customers")
+
+
+@router.post("/admin/customers/new")
+def customer_new(request: Request, name: str = Form(""), email: str = Form(""), mobile: str = Form(""), role: str = Form(""), org: str = Form(""),
+                 credit: str = Form(""), csrf: str = Form("")):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    form = {"name": name.strip()[:120], "email": email.strip().lower()[:200], "mobile": mobile.strip()[:20], "role": role, "org": org.strip()[:120], "credit": credit.strip()[:12]}
+
+    def fail(msg, code=422):
+        return page(request, "console_customer_new.html", u, code=code, error=msg, form=form, roles=ROLES, max_credit=fmt_paise(config.MAX_TOPUP_PAISE), nav="customers")
+
+    if not security.check_csrf(csrf, f"adm{u['id']}"):
+        return fail("Your session expired. Please reload and try again.", 400)
+    num = otp.clean_mobile(form["mobile"])
+    if not form["name"]:
+        return fail("Please enter the customer's name.")
+    if not EMAIL_RX.match(form["email"]):
+        return fail("Please enter a valid email address.")
+    if not num:
+        return fail("Enter a valid 10-digit Indian mobile number.")
+    if form["role"] not in ROLES:
+        return fail("Please choose a role.")
+    paise = 0
+    if form["credit"]:
+        try:
+            paise = wallet.parse_rupees(form["credit"])
+        except wallet.TopupError:
+            return fail("Enter the starting credit in rupees, for example 500, or leave it blank.")
+        if paise > config.MAX_TOPUP_PAISE:
+            return fail(f"Starting credit cannot be more than {fmt_paise(config.MAX_TOPUP_PAISE)}.")
+    try:
+        with tx() as conn:
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, has_password, mobile_verified) VALUES (?,?,?,?,?,?,0,0)",
+                               (form["email"], security.hash_password(secrets.token_urlsafe(32)), form["name"], form["org"] or None, form["role"], num))
+            uid = cur.lastrowid
+    except Exception as e:
+        if "UNIQUE" in str(e):
+            return fail("A customer with this email or mobile number already exists.", 409)
+        raise
+    if paise:
+        wallet.credit(uid, paise, f"admin:{u['id']}", "Starting credit added by admin", kind="adjust")
+    audit(request, u["id"], "admin_create_customer", f"{uid}:{paise}")
+    return finish(RedirectResponse(f"/admin/customers/{uid}?done=created", status_code=303), u)
+
+
+@router.get("/admin/customers/{uid}")
+def customer(request: Request, uid: int, done: str = ""):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    resp = _customer_view(request, u, uid, done=done)
     audit(request, u["id"], "admin_view_customer", str(uid))
-    return page(request, "console_customer.html", u, c=cu, stats=stats, topped=topped, pays=pays, reps=reps, ledger=ledger, consents=consents, acts=acts, nav="customers")
+    return resp
+
+
+@router.post("/admin/customers/{uid}/credit")
+def customer_credit(request: Request, uid: int, amount: str = Form(""), reason: str = Form(""), csrf: str = Form("")):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    form = {"amount": amount.strip()[:12], "reason": reason.strip()[:120]}
+    if not security.check_csrf(csrf, f"adm{u['id']}"):
+        return _customer_view(request, u, uid, 400, "Your session expired. Please reload and try again.", form=form)
+    with db() as c:
+        cu = c.execute("SELECT id, deleted_at FROM users WHERE id=?", (uid,)).fetchone()
+    if not cu:
+        return _customer_view(request, u, uid)
+    if cu["deleted_at"]:
+        return _customer_view(request, u, uid, 409, "This customer was deleted, so credit cannot be added.", form=form)
+    try:
+        paise = wallet.parse_rupees(form["amount"])
+    except wallet.TopupError:
+        return _customer_view(request, u, uid, 422, "Enter the amount in rupees, for example 500.", form=form)
+    if paise <= 0:
+        return _customer_view(request, u, uid, 422, "The amount must be more than zero.", form=form)
+    if paise > config.MAX_TOPUP_PAISE:
+        return _customer_view(request, u, uid, 422, f"One credit cannot be more than {fmt_paise(config.MAX_TOPUP_PAISE)}.", form=form)
+    why = " ".join("".join(ch for ch in form["reason"] if ch.isprintable()).split())
+    if len(why) < 3:
+        return _customer_view(request, u, uid, 422, "Add a short reason (for example: refund for failed upload, goodwill, offline payment received).", form=form)
+    wallet.credit(uid, paise, f"admin:{u['id']}", f"Credit added by admin: {why}", kind="adjust")
+    audit(request, u["id"], "admin_credit_wallet", f"{uid}:{paise}")
+    return finish(RedirectResponse(f"/admin/customers/{uid}?done=credited", status_code=303), u)
+
+
+def _unlink_reports(paths):
+    root = config.REPORT_DIR.resolve()
+    for p in paths:
+        try:
+            f = Path(p).resolve()
+            if p and root in f.parents and f.is_file():          # only ever remove files inside the reports folder
+                f.unlink()
+        except OSError:
+            pass
+
+
+@router.post("/admin/customers/{uid}/delete")
+def customer_delete(request: Request, uid: int, confirm: str = Form(""), csrf: str = Form("")):
+    """Delete a customer. Payments and wallet history cannot be deleted (accounting and tax records, and the database refuses it), so a
+    customer who ever paid or had wallet activity is erased in place: name, email, mobile, company, sign-in and every report are removed
+    and the account can no longer sign in. A customer with no such history is removed completely."""
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    if not security.check_csrf(csrf, f"adm{u['id']}"):
+        return _customer_view(request, u, uid, 400, "Your session expired. Please reload and try again.")
+    with db() as c:
+        cu = c.execute("SELECT id, email, mobile, is_admin, is_master, deleted_at, balance_paise FROM users WHERE id=?", (uid,)).fetchone()
+    if not cu:
+        return _customer_view(request, u, uid)
+    if cu["deleted_at"]:
+        return _customer_view(request, u, uid, 409, "This customer is already deleted.")
+    if cu["is_admin"] or cu["is_master"] or cu["id"] == u["id"]:
+        return _customer_view(request, u, uid, 403, "Admin and test accounts cannot be deleted here. Remove their access with the command line first.")
+    if confirm.strip().lower() != cu["email"].lower():
+        return _customer_view(request, u, uid, 422, "To delete, type the customer's email address exactly as shown.")
+    with tx() as conn:
+        files = [r["xlsx_path"] for r in conn.execute("SELECT xlsx_path FROM reports WHERE user_id=?", (uid,))]
+        conn.execute("DELETE FROM reports WHERE user_id=?", (uid,))
+        conn.execute("DELETE FROM coupon_redemptions WHERE user_id=? AND status='reserved'", (uid,))
+        conn.execute("DELETE FROM otps WHERE email=? OR mobile=? OR mobile=?", (cu["email"], cu["email"], cu["mobile"] or ""))
+        history = (conn.execute("SELECT COUNT(*) FROM payments WHERE user_id=?", (uid,)).fetchone()[0]
+                   + conn.execute("SELECT COUNT(*) FROM wallet_ledger WHERE user_id=?", (uid,)).fetchone()[0]
+                   + conn.execute("SELECT COUNT(*) FROM coupon_redemptions WHERE user_id=?", (uid,)).fetchone()[0])
+        if history:
+            conn.execute("UPDATE users SET email=?, name='Deleted customer', org=NULL, mobile=NULL, password_hash=?, has_password=0, mobile_verified=0, "
+                         "mfa_secret=NULL, mfa_enabled=0, privileged=0, price_paise=NULL, session_epoch=session_epoch+1, deleted_at=datetime('now') WHERE id=?",
+                         (f"deleted-{uid}@deleted.invalid", security.hash_password(secrets.token_urlsafe(32)), uid))
+            how = "erased-in-place"
+        else:
+            conn.execute("DELETE FROM consents WHERE user_id=?", (uid,))
+            conn.execute("DELETE FROM users WHERE id=?", (uid,))
+            how = "removed"
+    _unlink_reports(files)
+    audit(request, u["id"], "admin_delete_customer", f"{uid}:{how}:balance_paise={cu['balance_paise']}")
+    return finish(RedirectResponse("/admin/customers?done=deleted", status_code=303), u)
 
 
 @router.get("/admin/transactions")

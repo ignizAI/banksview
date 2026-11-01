@@ -1,0 +1,20 @@
+{% extends "console_base.html" %}{% block title %}Add customer{% endblock %}
+{% block body %}
+<p style="margin:0 0 6px"><a href="/admin/customers">&larr; All customers</a></p>
+<h1>Add customer</h1>
+<p class="sub">Creates an account without a password. The customer signs in with the code sent to their email and accepts the Terms on first sign-in.</p>
+<section class="card" style="max-width:560px">
+  {% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/admin/customers/new" onsubmit="this.querySelector('button').disabled=true">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label for="n">Name</label><input id="n" name="name" value="{{ form.name or '' }}" required maxlength="120" autofocus></div>
+    <div class="field"><label for="e">Email</label><input id="e" type="email" name="email" value="{{ form.email or '' }}" required maxlength="200" autocapitalize="none"></div>
+    <div class="field"><label for="m">Mobile</label><input id="m" name="mobile" inputmode="tel" value="{{ form.mobile or '' }}" required placeholder="10-digit Indian number"></div>
+    <div class="field"><label for="r">Role</label><select id="r" name="role" required>
+      <option value="">Choose a role</option>{% for k, v in roles.items() %}<option value="{{ k }}" {{ 'selected' if form.role == k }}>{{ v }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="o">Company <span class="muted">(optional)</span></label><input id="o" name="org" value="{{ form.org or '' }}" maxlength="120"></div>
+    <div class="field"><label for="c">Starting credit in Rs <span class="muted">(optional, up to {{ max_credit }})</span></label><input id="c" name="credit" inputmode="decimal" value="{{ form.credit or '' }}" placeholder="0"></div>
+    <button class="btn primary">Add customer</button>
+  </form>
+</section>
+{% endblock %}

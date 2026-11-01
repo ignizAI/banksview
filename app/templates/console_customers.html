@@ -2,8 +2,9 @@
 {% block body %}
 <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px">
   <div><h1>Customers</h1><p class="sub" style="margin:0">Everyone who registered, with wallet, spend, reports and downloads. Times are Indian time.</p></div>
-  <a class="btn" href="{{ urlq('/admin/export/customers.csv', test=test) }}">Download CSV</a>
+  <div style="display:flex;gap:8px"><a class="btn primary" href="/admin/customers/new">Add customer</a><a class="btn" href="{{ urlq('/admin/export/customers.csv', test=test) }}">Download CSV</a></div>
 </div>
+{% if done %}<div class="banner ok" role="status">Customer deleted.</div>{% endif %}
 <form class="filters" method="get" action="/admin/customers">
   <input type="search" name="q" value="{{ q }}" placeholder="Search name, email, mobile or company" aria-label="Search">
   <select name="sort" aria-label="Sort by">{% for s,l in (('new','Newest first'),('spend','Highest spend'),('reports','Most uploads'),('downloads','Most downloads'),('balance','Highest balance'),('seen','Recently active')) %}<option value="{{ s }}" {{ 'selected' if sort == s }}>{{ l }}</option>{% endfor %}</select>
