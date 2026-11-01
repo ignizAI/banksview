@@ -2,10 +2,11 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>Admin sign in | {{ BRAND }}</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#1C78FF">
 <link rel="stylesheet" href="/static/admin.css?v={{ ASSET_A }}">
 </head><body class="signin">
 <div class="signbox">
-  <span class="logo">{{ BRAND }}<small>Admin</small></span>
+  <span class="logo"><img src="/static/logo-mark.svg" alt="" width="28" height="28">{{ BRAND }}<small>Admin</small></span>
   <h1>Admin sign in</h1>
   <p class="sub" style="margin-bottom:16px">Restricted to {{ BRAND }} administrators.</p>
   {% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}

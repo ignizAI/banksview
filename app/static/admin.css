@@ -20,7 +20,7 @@ h2{font-size:15px;margin:0 0 12px;font-weight:600}
 /* header */
 .bar{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
 .bar .wrap{display:flex;align-items:center;gap:20px;min-height:56px;flex-wrap:wrap}
-.logo{font-weight:700;color:var(--ink);letter-spacing:-.01em}.logo small{font-weight:500;color:var(--muted);margin-left:6px}
+.logo{display:inline-flex;align-items:center;gap:9px;font-weight:700;color:var(--ink);letter-spacing:-.01em}.logo img{display:block;border-radius:7px}.logo:hover{text-decoration:none}.logo small{font-weight:500;color:var(--muted);margin-left:6px}
 .bar nav{display:flex;gap:2px;flex:1;flex-wrap:wrap}
 .bar nav a{color:var(--ink2);padding:8px 12px;border-radius:8px;font-weight:500}
 .bar nav a:hover{background:var(--hover);text-decoration:none;color:var(--ink)}
@@ -84,7 +84,7 @@ details.tv{margin-top:10px;color:var(--ink2)}details.tv summary{cursor:pointer}
 /* sign-in screen */
 body.signin{display:grid;place-items:center;min-height:100vh;padding:20px}
 .signbox{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px}
-.signbox h1{font-size:20px}.signbox .logo{display:block;margin-bottom:18px}
+.signbox h1{font-size:20px}.signbox .logo{display:flex;margin-bottom:18px}
 .field{margin:0 0 14px}.field label{display:block;font-weight:600;margin:0 0 5px;font-size:13px}.field input{width:100%}.field small{color:var(--muted)}
 .banner{border-radius:10px;padding:10px 12px;margin:0 0 14px;background:var(--bad-bg);color:var(--bad);font-weight:500}
 .banner.ok{background:var(--good-bg);color:var(--good)}.banner.warn{background:var(--warn-bg);color:var(--warn)}

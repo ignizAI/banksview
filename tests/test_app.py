@@ -1284,3 +1284,14 @@ def test_uploaded_statement_is_never_written_to_disk(user):
                 leaked.append(path)
     assert leaked == []
     assert not config.UPLOAD_TMP_DIR.exists() or not any(config.UPLOAD_TMP_DIR.iterdir())
+
+
+def test_logo_and_favicons_are_served_and_linked(client):
+    home = client.get("/").text
+    assert 'rel="icon"' in home and "/static/favicon.svg" in home and "/static/logo-mark.svg" in home and "apple-touch-icon" in home
+    for path, kind in (("/static/logo-mark.svg", "image/svg+xml"), ("/static/logo.svg", "image/svg+xml"), ("/static/favicon-32.png", "image/png"),
+                       ("/static/apple-touch-icon.png", "image/png"), ("/favicon.ico", "image/png")):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers["content-type"].startswith(kind), path
+    assert "img-src 'self'" in client.get("/").headers["content-security-policy"]
+    assert "/static/favicon.svg" in client.get("/admin/login").text

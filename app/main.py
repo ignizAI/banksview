@@ -1089,6 +1089,12 @@ def recover_stuck(max_age_minutes: int = 10) -> int:
     return len(stuck)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    """Browsers ask for /favicon.ico by habit, whatever the page says."""
+    return FileResponse(APP_DIR / "static" / "favicon-32.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.exception_handler(404)
 async def not_found(request: Request, exc):
     return render(request, "error.html", current_user(request), status=404, title="Page not found", message="That page does not exist.")
