@@ -31,7 +31,7 @@ main{padding:24px 0 56px}
 /* controls */
 .btn{font:inherit;font-weight:600;border:1px solid var(--border);background:var(--surface);color:var(--ink);padding:7px 14px;border-radius:9px;cursor:pointer}
 .btn:hover{background:var(--hover)}.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}.btn.primary:hover{filter:brightness(1.06)}
-.btn.small{padding:5px 10px;font-size:13px}
+.btn.small{padding:5px 10px;font-size:13px;white-space:nowrap}
 .filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
 .filters input[type=search],.filters select,.field input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:7px 11px;min-width:0}
 .filters input[type=search]{min-width:240px}
@@ -100,3 +100,13 @@ body.signin{display:grid;place-items:center;min-height:100vh;padding:20px}
 .meter i{display:block;height:100%;border-radius:99px;background:var(--s1)}.meter i.warn{background:#d99a00}.meter i.bad{background:var(--bad)}
 .meter b{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--surface);opacity:.9}
 code{background:var(--hover);padding:1px 5px;border-radius:5px;font-size:12.5px}
+
+/* sign-in screen watermark: same look as the public landing page */
+.wm{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;color:var(--accent)}
+.wm-box{position:absolute;inset:0}
+.wm i{--o:.2;--r:0deg;--dx:4px;--dy:-10px;--t:22s;--d:0s;position:absolute;opacity:var(--o);transform:rotate(var(--r))}
+.wm i.live{animation:wm-float var(--t) ease-in-out var(--d) infinite alternate}
+.wm i svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@keyframes wm-float{from{transform:translate3d(0,0,0) rotate(var(--r))}to{transform:translate3d(var(--dx),var(--dy),0) rotate(calc(var(--r) + 10deg))}}
+@media(prefers-reduced-motion:reduce){.wm i{animation:none!important}}
+body.signin .signbox{position:relative;z-index:1}

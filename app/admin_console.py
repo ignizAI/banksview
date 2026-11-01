@@ -82,11 +82,12 @@ def admin_user(request: Request):
         return None
     u = dict(row)
     u["refresh"] = now - sess["ls"] > 60
+    u["sid"] = sess["sid"]
     return u
 
 
-def _cookie(resp, uid: int, epoch: int):
-    resp.set_cookie(COOKIE, security.make_admin_session(uid, epoch), max_age=12 * 3600, httponly=True, samesite="strict",
+def _cookie(resp, uid: int, epoch: int, sid: str = ""):
+    resp.set_cookie(COOKIE, security.make_admin_session(uid, epoch, sid=sid), max_age=12 * 3600, httponly=True, samesite="strict",
                     secure=config.APP_ENV == "production", path="/admin")
     return resp
 
@@ -94,13 +95,16 @@ def _cookie(resp, uid: int, epoch: int):
 def finish(resp, u=None):
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     if u and u.get("refresh"):
-        _cookie(resp, u["id"], u["session_epoch"] or 0)       # sliding idle window
+        _cookie(resp, u["id"], u["session_epoch"] or 0, u.get("sid", ""))       # sliding idle window
+        if u.get("sid"):
+            with tx() as conn:
+                conn.execute("UPDATE admin_sessions SET last_seen_at=datetime('now') WHERE sid=? AND ended_at IS NULL", (u["sid"],))
     return resp
 
 
 def page(request: Request, name: str, u, code: int = 200, **ctx):
     scope = f"adm{u['id']}" if u else "adm-anon"
-    ctx.update(admin=u, csrf=security.make_csrf(scope), ASSET_A=int((APP_DIR / "static" / "admin.css").stat().st_mtime))
+    ctx.update(admin=u, csrf=security.make_csrf(scope), ASSET_A=max(int((APP_DIR / "static" / "admin.css").stat().st_mtime), int((APP_DIR / "static" / "admin-wm.js").stat().st_mtime)))
     return finish(templates.TemplateResponse(request, name, ctx, status_code=code), u)
 
 
@@ -146,7 +150,154 @@ def login(request: Request, email: str = Form(""), password: str = Form(""), csr
         return fail()
     security.admin_throttle.reset(f"{ip}|{email}")
     audit(request, u["id"], "admin_login")
-    return finish(_cookie(RedirectResponse("/admin", status_code=303), u["id"], u["session_epoch"] or 0))
+    sid = secrets.token_hex(8)
+    with tx() as conn:
+        conn.execute("INSERT INTO admin_sessions(sid, user_id, ip, user_agent) VALUES (?,?,?,?)", (sid, u["id"], ip, (request.headers.get("user-agent") or "")[:200]))
+    return finish(_cookie(RedirectResponse("/admin", status_code=303), u["id"], u["session_epoch"] or 0, sid))
+
+
+# ----------------------------------------------------------------------------- admin accounts and their sessions
+ADMIN_LIST = ("SELECT u.id, u.name, u.email, u.created_at, "
+              "(SELECT COUNT(*) FROM admin_sessions s WHERE s.user_id=u.id) sessions, "
+              "(SELECT MAX(s.started_at) FROM admin_sessions s WHERE s.user_id=u.id) last_in, "
+              "(SELECT MAX(s.ended_at) FROM admin_sessions s WHERE s.user_id=u.id) last_out, "
+              "(SELECT MAX(s.last_seen_at) FROM admin_sessions s WHERE s.user_id=u.id) last_seen "
+              "FROM users u WHERE u.is_admin=1 ORDER BY u.id")
+SESSION_LOG = ("SELECT s.sid, s.user_id, s.started_at, s.last_seen_at, s.ended_at, s.ended_reason, s.ip, s.user_agent, u.name, u.email "
+               "FROM admin_sessions s JOIN users u ON u.id=s.user_id ORDER BY s.started_at DESC LIMIT 100")
+_UTC_FMT = "%Y-%m-%d %H:%M:%S"
+
+
+def _dt(v):
+    try:
+        return datetime.strptime(str(v)[:19], _UTC_FMT)
+    except ValueError:
+        return None
+
+
+def session_state(row, now: datetime | None = None) -> dict:
+    """Work out how a stored session ended. The cookie itself is stateless, so a session nobody signed out of is treated as ended
+    when its idle window ran out (20 minutes after the last activity) or after 12 hours, whichever came first."""
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    start, seen, end = _dt(row["started_at"]), _dt(row["last_seen_at"]) or _dt(row["started_at"]), _dt(row["ended_at"])
+    if end:
+        return {"active": False, "end": end, "reason": row["ended_reason"] or "signed out", "secs": max(0, (end - start).total_seconds())}
+    limit = min(seen + timedelta(minutes=config.ADMIN_IDLE_MINUTES), start + timedelta(hours=12))
+    if now < limit:
+        return {"active": True, "end": None, "reason": "Active now", "secs": max(0, (now - start).total_seconds())}
+    why = "Timed out (12 hour limit)" if start + timedelta(hours=12) <= seen + timedelta(minutes=config.ADMIN_IDLE_MINUTES) else "Timed out (idle)"
+    return {"active": False, "end": limit, "reason": why, "secs": max(0, (limit - start).total_seconds())}
+
+
+def duration(secs) -> str:
+    secs = int(secs or 0)
+    if secs < 60:
+        return f"{secs}s"
+    m = secs // 60
+    return f"{m}m" if m < 60 else f"{m // 60}h {m % 60:02d}m"
+
+
+def browser(ua: str) -> str:
+    ua = ua or ""
+    name = next((n for k, n in (("Edg/", "Edge"), ("OPR/", "Opera"), ("Firefox/", "Firefox"), ("Chrome/", "Chrome"), ("Safari/", "Safari")) if k in ua), "Unknown browser")
+    system = next((n for k, n in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"), ("Windows", "Windows"), ("Mac OS X", "Mac"), ("Linux", "Linux")) if k in ua), "")
+    return f"{name} on {system}" if system else name
+
+
+templates.env.filters.update({"duration": duration, "browser": browser})
+
+
+def _admins_view(request: Request, u, code: int = 200, error=None, done=None, form=None):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    with db() as c:
+        admins = [dict(r) for r in c.execute(ADMIN_LIST).fetchall()]
+        log = [dict(r) for r in c.execute(SESSION_LOG).fetchall()]
+        wk = (now - timedelta(days=7)).strftime(_UTC_FMT)
+        day = (now - timedelta(days=1)).strftime(_UTC_FMT)
+        signins_7d = c.execute("SELECT COUNT(*) FROM admin_sessions WHERE started_at>=?", (wk,)).fetchone()[0]
+        failed_24h = c.execute("SELECT COUNT(*) FROM audit_log WHERE event IN ('admin_login_failed','admin_login_throttled') AND created_at>=?", (day,)).fetchone()[0]
+    for r in log:
+        r["st"] = session_state(r, now)
+    online = {r["user_id"] for r in log if r["st"]["active"]}
+    for a in admins:
+        a["online"] = a["id"] in online
+    # a person can have several open rows (several browsers): count people, not rows
+    return page(request, "console_admins.html", u, code=code, admins=admins, log=log, online=len(online), signins_7d=signins_7d, failed_24h=failed_24h,
+                error=error, done=done if done in ("created", "removed") else None, form=form or {}, nav="admins")
+
+
+def _strong_enough(pw: str, email: str, name: str):
+    if len(pw) < 12:
+        return "The password needs at least 12 characters."
+    low = pw.lower()
+    local = email.split("@")[0].lower()
+    if (len(local) >= 4 and local in low) or (len(name.split()[0]) >= 4 and name.split()[0].lower() in low):
+        return "The password should not contain the person's name or email."
+    if len(set(pw)) < 5:
+        return "Choose a less repetitive password."
+    return None
+
+
+@router.get("/admin/admins")
+def admins_page(request: Request, done: str = ""):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    return _admins_view(request, u, done=done)
+
+
+@router.post("/admin/admins/new")
+def admins_new(request: Request, name: str = Form(""), email: str = Form(""), password: str = Form(""), confirm: str = Form(""), csrf: str = Form("")):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    form = {"name": name.strip()[:120], "email": email.strip().lower()[:200]}
+
+    def fail(msg, code=422):
+        return _admins_view(request, u, code, msg, form=form)
+
+    if not security.check_csrf(csrf, f"adm{u['id']}"):
+        return fail("Your session expired. Please reload and try again.", 400)
+    if not form["name"]:
+        return fail("Please enter the administrator's name.")
+    if not EMAIL_RX.match(form["email"]):
+        return fail("Please enter a valid email address. It is the new administrator's username.")
+    if password != confirm:
+        return fail("The two passwords do not match.")
+    problem = _strong_enough(password, form["email"], form["name"])
+    if problem:
+        return fail(problem)
+    try:
+        with tx() as conn:
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, is_admin) VALUES (?,?,?,?,?,1)",
+                               (form["email"], security.hash_password(password), form["name"], config.BRAND, "lender"))
+            new_id = cur.lastrowid
+    except Exception as e:
+        if "UNIQUE" in str(e):
+            return fail("That email is already registered. Use a different email for the administrator.", 409)
+        raise
+    audit(request, u["id"], "admin_create_admin", str(new_id))
+    return finish(RedirectResponse("/admin/admins?done=created", status_code=303), u)
+
+
+@router.post("/admin/admins/{uid}/remove")
+def admins_remove(request: Request, uid: int, csrf: str = Form("")):
+    """Take admin access away (the account itself stays and any session it has ends at once). You cannot remove yourself."""
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    if not security.check_csrf(csrf, f"adm{u['id']}"):
+        return _admins_view(request, u, 400, "Your session expired. Please reload and try again.")
+    if uid == u["id"]:
+        return _admins_view(request, u, 403, "You cannot remove your own admin access. Ask another administrator.")
+    with tx() as conn:
+        t = conn.execute("SELECT id FROM users WHERE id=? AND is_admin=1", (uid,)).fetchone()
+        if not t:
+            return _admins_view(request, u, 404, "That administrator was not found.")
+        conn.execute("UPDATE users SET is_admin=0, session_epoch=session_epoch+1 WHERE id=?", (uid,))
+        conn.execute("UPDATE admin_sessions SET ended_at=datetime('now'), ended_reason='access removed' WHERE user_id=? AND ended_at IS NULL", (uid,))
+    audit(request, u["id"], "admin_remove_admin", str(uid))
+    return finish(RedirectResponse("/admin/admins?done=removed", status_code=303), u)
 
 
 @router.post("/admin/logout")
@@ -157,6 +308,7 @@ def logout(request: Request, csrf: str = Form("")):
     if u and security.check_csrf(csrf, f"adm{u['id']}"):
         with tx() as conn:
             conn.execute("UPDATE users SET session_epoch = session_epoch + 1 WHERE id=?", (u["id"],))     # kills every older cookie
+            conn.execute("UPDATE admin_sessions SET ended_at=datetime('now'), ended_reason='signed out' WHERE user_id=? AND ended_at IS NULL", (u["id"],))
         audit(request, u["id"], "admin_logout")
     return resp
 

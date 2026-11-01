@@ -49,6 +49,7 @@ def main(argv):
         if len(argv) == 4 and argv[3] == "revoke":
             with db() as c:
                 c.execute("UPDATE users SET is_admin=0, session_epoch=session_epoch+1 WHERE email=?", (email,))
+                c.execute("UPDATE admin_sessions SET ended_at=datetime('now'), ended_reason='ended by server command' WHERE ended_at IS NULL AND user_id=(SELECT id FROM users WHERE email=?)", (email,))
             print("Admin access removed from", email)
             return 0
         with db() as c:
@@ -60,6 +61,7 @@ def main(argv):
             if u:
                 if pw:
                     c.execute("UPDATE users SET is_admin=1, has_password=1, password_hash=?, session_epoch=session_epoch+1 WHERE id=?", (security.hash_password(pw), u["id"]))
+                    c.execute("UPDATE admin_sessions SET ended_at=datetime('now'), ended_reason='ended by server command' WHERE ended_at IS NULL AND user_id=?", (u["id"],))
                     print("Existing account promoted to admin and its password set:", email)
                 elif u["has_password"]:
                     c.execute("UPDATE users SET is_admin=1 WHERE id=?", (u["id"],))

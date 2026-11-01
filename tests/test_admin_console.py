@@ -449,3 +449,117 @@ def test_storage_warning_banner_and_size_format(admin, monkeypatch):
     page = admin.get("/admin").text
     assert "Almost full" in page and "90.0%" in page and "36.0 GB of 40.0 GB" in page and "docker image prune" in page
     assert admin_console.size(0) == "0 B" and admin_console.size(1536) == "1.5 KB"
+
+
+# ----------------------------------------------------------------------------- admin accounts, session log, sign-in watermark
+def _admin_form(client, **kw):
+    page = client.get("/admin/admins")
+    data = {"name": "Nikhil Rao", "email": "nikhil@example.com", "password": "Correct-Horse-Battery-9", "confirm": "Correct-Horse-Battery-9", "csrf": csrf_from(page.text)}
+    data.update(kw)
+    return client.post("/admin/admins/new", data=data, follow_redirects=False)
+
+
+def test_admins_page_needs_sign_in_and_actions_need_an_admin(client):
+    assert client.get("/admin/admins", follow_redirects=False).headers["location"] == "/admin/login"
+    for path in ("/admin/admins/new", "/admin/admins/1/remove"):
+        r = client.post(path, data={"csrf": "x", "name": "a", "email": "a@b.co", "password": "x" * 14, "confirm": "x" * 14}, follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/admin/login", path
+
+
+def test_signin_and_signout_are_logged_with_times(admin):
+    from app.db import db
+    with db() as c:
+        row = c.execute("SELECT * FROM admin_sessions").fetchone()
+    assert row["user_id"] and row["started_at"] and row["ended_at"] is None and row["sid"]
+    html = admin.get("/admin/admins").text
+    assert "Active now" in html and ADMIN_EMAIL in html and "Signed in now" in html
+    out = admin.post("/admin/logout", data={"csrf": csrf_from(admin.get("/admin/customers").text)}, follow_redirects=False)
+    assert out.status_code == 303
+    with db() as c:
+        row = c.execute("SELECT ended_at, ended_reason FROM admin_sessions").fetchone()
+    assert row["ended_at"] and row["ended_reason"] == "signed out"
+    admin_login(admin)                                          # sign back in to read the log
+    html = admin.get("/admin/admins").text
+    assert "signed out" in html and "Active now" in html
+
+
+def test_session_state_timeouts():
+    from datetime import datetime, timedelta
+    from app import admin_console as ac
+    t0 = datetime(2026, 11, 1, 10, 0, 0)
+    f = lambda d: d.strftime("%Y-%m-%d %H:%M:%S")      # noqa: E731
+    row = {"started_at": f(t0), "last_seen_at": f(t0 + timedelta(minutes=5)), "ended_at": None, "ended_reason": None}
+    assert ac.session_state(row, t0 + timedelta(minutes=10))["active"]
+    idle = ac.session_state(row, t0 + timedelta(hours=1))
+    assert not idle["active"] and idle["reason"] == "Timed out (idle)" and idle["secs"] == (5 + 20) * 60
+    done = ac.session_state({**row, "ended_at": f(t0 + timedelta(minutes=8)), "ended_reason": "signed out"}, t0 + timedelta(hours=3))
+    assert done["reason"] == "signed out" and done["secs"] == 8 * 60
+    assert ac.duration(45) == "45s" and ac.duration(600) == "10m" and ac.duration(3 * 3600 + 5 * 60) == "3h 05m"
+    assert ac.browser("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36") == "Chrome on Mac"
+
+
+def test_create_a_new_admin_who_can_sign_in(admin):
+    from app.db import db
+    r = _admin_form(admin)
+    assert r.status_code == 303 and r.headers["location"] == "/admin/admins?done=created"
+    with db() as c:
+        u = c.execute("SELECT is_admin, has_password, is_master, password_hash FROM users WHERE email='nikhil@example.com'").fetchone()
+        ev = c.execute("SELECT event FROM audit_log WHERE event='admin_create_admin'").fetchone()
+    assert (u["is_admin"], u["has_password"], u["is_master"]) == (1, 1, 0) and ev and "Correct-Horse" not in u["password_hash"]
+    assert "Nikhil Rao" in admin.get("/admin/admins").text
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as other:
+        assert admin_login(other, "nikhil@example.com", "Correct-Horse-Battery-9").status_code == 303
+        assert other.get("/admin").status_code == 200
+
+
+@pytest.mark.parametrize("kw,code", [({"name": ""}, 422), ({"email": "nope"}, 422), ({"confirm": "different-password-1"}, 422), ({"password": "short", "confirm": "short"}, 422),
+                                     ({"password": "nikhil-password-1", "confirm": "nikhil-password-1"}, 422), ({"password": "aaaaaaaaaaaaaa", "confirm": "aaaaaaaaaaaaaa"}, 422),
+                                     ({"csrf": "bad"}, 400)])
+def test_create_admin_validation(admin, kw, code):
+    from app.db import db
+    assert _admin_form(admin, **kw).status_code == code
+    with db() as c:
+        assert c.execute("SELECT COUNT(*) FROM users WHERE email='nikhil@example.com'").fetchone()[0] == 0
+
+
+def test_create_admin_refuses_an_email_that_is_already_registered(admin):
+    from app.db import tx
+    with tx() as c:
+        c.execute("INSERT INTO users(email,password_hash,name,role) VALUES ('cust@example.com','x','Customer','lender')")
+    r = _admin_form(admin, email="cust@example.com")
+    assert r.status_code == 409
+    from app.db import db
+    with db() as c:
+        assert c.execute("SELECT is_admin FROM users WHERE email='cust@example.com'").fetchone()[0] == 0     # a customer is never promoted by accident
+
+
+def test_remove_admin_access_ends_their_session_and_not_your_own(admin):
+    from app.db import db
+    from fastapi.testclient import TestClient
+    from app.main import app
+    _admin_form(admin)
+    with TestClient(app) as other:
+        assert admin_login(other, "nikhil@example.com", "Correct-Horse-Battery-9").status_code == 303
+        assert other.get("/admin").status_code == 200
+        with db() as c:
+            nid = c.execute("SELECT id FROM users WHERE email='nikhil@example.com'").fetchone()[0]
+            me = c.execute("SELECT id FROM users WHERE email=?", (ADMIN_EMAIL,)).fetchone()[0]
+        tok = csrf_from(admin.get("/admin/admins").text)
+        assert admin.post(f"/admin/admins/{me}/remove", data={"csrf": tok}, follow_redirects=False).status_code == 403
+        r = admin.post(f"/admin/admins/{nid}/remove", data={"csrf": tok}, follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"].endswith("done=removed")
+        assert other.get("/admin", follow_redirects=False).status_code == 303          # their open session no longer works
+    with db() as c:
+        assert c.execute("SELECT is_admin FROM users WHERE id=?", (nid,)).fetchone()[0] == 0
+        assert c.execute("SELECT ended_reason FROM admin_sessions WHERE user_id=?", (nid,)).fetchone()[0] == "access removed"
+    assert admin_login(TestClient(app), "nikhil@example.com", "Correct-Horse-Battery-9").status_code == 401
+
+
+def test_signin_screen_has_the_watermark_without_inline_script(client):
+    html = client.get("/admin/login").text
+    assert 'class="wm"' in html and "wm-bank" in html and "/static/admin-wm.js" in html
+    assert re.search(r"<script(?![^>]*src=)[^>]*>", html) is None           # nothing inline: the page's script policy stays strict
+    js = client.get("/static/admin-wm.js")
+    assert js.status_code == 200 and "signbox" in js.text

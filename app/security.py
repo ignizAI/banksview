@@ -94,13 +94,13 @@ def read_session(token: str | None) -> dict | None:
         return None
     try:
         data = _ser.loads(token, max_age=config.SESSION_DAYS * 86400)
-        return {"uid": int(data["uid"]), "e": int(data.get("e", 0)), "ls": int(data.get("ls", 0))}
+        return {"uid": int(data["uid"]), "e": int(data.get("e", 0)), "ls": int(data.get("ls", 0)), "sid": str(data.get("sid", ""))[:32]}
     except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
         return None
 
 
-def make_admin_session(user_id: int, epoch: int = 0, now: float | None = None) -> str:
-    return _admin_ser.dumps({"uid": user_id, "e": int(epoch), "ls": int(now if now is not None else time.time()), "n": secrets.token_hex(4)})
+def make_admin_session(user_id: int, epoch: int = 0, now: float | None = None, sid: str = "") -> str:
+    return _admin_ser.dumps({"uid": user_id, "e": int(epoch), "ls": int(now if now is not None else time.time()), "n": secrets.token_hex(4), "sid": sid})
 
 
 def read_admin_session(token: str | None) -> dict | None:
@@ -108,7 +108,7 @@ def read_admin_session(token: str | None) -> dict | None:
         return None
     try:
         data = _admin_ser.loads(token, max_age=12 * 3600)       # at most 12 hours, whatever the activity
-        return {"uid": int(data["uid"]), "e": int(data.get("e", 0)), "ls": int(data.get("ls", 0))}
+        return {"uid": int(data["uid"]), "e": int(data.get("e", 0)), "ls": int(data.get("ls", 0)), "sid": str(data.get("sid", ""))[:32]}
     except (BadSignature, SignatureExpired, KeyError, ValueError, TypeError):
         return None
 

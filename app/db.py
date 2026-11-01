@@ -94,6 +94,17 @@ CREATE TABLE IF NOT EXISTS audit_log (       -- append-only record of who did wh
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS ix_audit_user ON audit_log(user_id, id);
+CREATE TABLE IF NOT EXISTS admin_sessions (  -- one row per admin sign-in: when it started, last activity, and how it ended
+    sid TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at TEXT,
+    ended_reason TEXT,                        -- signed out | access removed | ended by server command
+    ip TEXT,
+    user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_admin_sessions_user ON admin_sessions(user_id, started_at);
 CREATE TABLE IF NOT EXISTS otps (            -- one-time codes sent to a mobile number (stored hashed)
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     purpose TEXT NOT NULL,                    -- signup | login
