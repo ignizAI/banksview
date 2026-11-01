@@ -1359,3 +1359,14 @@ def test_wallet_script_is_valid_javascript_in_every_payment_mode(user, monkeypat
         script = script[:script.index("</script>")]
         assert "&#" not in script and "&amp;" not in script and "&lt;" not in script
         assert ("var CONTACT=true" if mode == "contact_admin" else "var CONTACT=false") in script
+
+
+def test_default_payment_mode_never_credits_a_wallet_by_itself(client, monkeypatch):
+    import importlib, os
+    monkeypatch.delenv("PAYMENT_MODE", raising=False)
+    assert importlib.reload(config).PAYMENT_MODE == "contact_admin"
+    os.environ["PAYMENT_MODE"] = "mock"; importlib.reload(config)
+    from app import payments
+    monkeypatch.setattr(config, "PAYMENT_MODE", "contact_admin")
+    with pytest.raises(payments.PaymentError):
+        payments.create_order(1, 25000, pack="p250")

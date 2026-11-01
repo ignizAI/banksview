@@ -72,7 +72,7 @@ COUPON_PERCENT = _int("COUPON_PERCENT", 20)
 
 
 # --- Payments ---
-PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "mock")      # mock | razorpay | upi_qr | contact_admin (customers pick a plan; admin collects payment and adds credit)
+PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "contact_admin")      # mock | razorpay | upi_qr | contact_admin (customers pick a plan; admin collects payment and adds credit)
 SUPPORT_PHONE = os.environ.get("SUPPORT_PHONE", "")          # shown with the "contact admin" payment message
 UPI_ID = os.environ.get("UPI_ID", "")                       # payee UPI ID (VPA) for PAYMENT_MODE=upi_qr; blank until supplied
 UPI_PAYEE_NAME = os.environ.get("UPI_PAYEE_NAME", "")
