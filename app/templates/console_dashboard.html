@@ -9,6 +9,13 @@
   </div>
 </div>
 
+{% if notes %}<section class="card" aria-label="Plan requests" style="border-left:4px solid var(--accent, #1a73ff)">
+  <h2>Plan requests <small>{{ notes | length }} waiting for payment &middot; collect payment, then add credit</small></h2>
+  <div class="tablewrap"><table><tr><th>When</th><th>Customer</th><th>Contact</th><th>Plan</th><th class="n">Amount</th><th></th></tr>
+  {% for n in notes %}<tr><td>{{ n.created_at | ist('%d %b, %H:%M') }}</td><td><a href="/admin/customers/{{ n.user_id }}">{{ n.name }}</a></td>
+    <td>{{ n.email }}<br><span class="muted">{{ n.country_code }} {{ n.mobile }}</span></td><td>{{ packs.get(n.pack, n.pack) }}</td><td class="n">{{ n.amount_paise | paise }}</td>
+    <td><form method="post" action="/admin/notifications/{{ n.id }}/handled"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Mark done</button></form></td></tr>{% endfor %}</table></div>
+</section>{% endif %}
 <section class="kpis" aria-label="Key figures">
   <div class="kpi"><div class="l">Registered customers</div><div class="v">{{ k.users_total | num }}</div><div class="d">+{{ k.users_window | num }} in {{ days }} days · +{{ k.users_7d | num }} in 7 days</div></div>
   <div class="kpi"><div class="l">Revenue collected</div><div class="v">{{ k.revenue_total | paise }}</div><div class="d">{{ k.revenue_window | paise }} in {{ days }} days · {{ k.pay_paid | num }} payments</div></div>

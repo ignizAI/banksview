@@ -596,3 +596,24 @@ def test_admin_cannot_set_an_admin_password_here(admin):
     with db() as c:
         aid = c.execute("SELECT id FROM users WHERE is_admin=1").fetchone()[0]
     assert admin.post(f"/admin/customers/{aid}/password", data={"password": "Fresh-pass-2024", "csrf": _csrf(admin, aid)}).status_code == 403
+
+
+def test_plan_click_notifies_admin_dashboard_once_per_click(client, monkeypatch):
+    from app import config
+    from conftest import signup_otp, csrf_from
+    from app.db import db
+    monkeypatch.setattr(config, "PAYMENT_MODE", "contact_admin")
+    assert signup_otp(client, email="plan@example.com", name="Plan Person").status_code == 303
+    page = client.get("/wallet")
+    client.post("/wallet/topup", data={"pack": "p250", "csrf": csrf_from(page.text)})
+    with db() as c:
+        assert c.execute("SELECT COUNT(*) FROM admin_notifications").fetchone()[0] == 1
+    make_admin()
+    client.cookies.clear()
+    assert admin_login(client).status_code == 303
+    d = client.get("/admin")
+    assert "Plan requests" in d.text and "plan@example.com" in d.text and "Starter pack" in d.text
+    nid = 1
+    r = client.post(f"/admin/notifications/{nid}/handled", data={"csrf": csrf_from(d.text)}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "Plan requests" not in client.get("/admin").text

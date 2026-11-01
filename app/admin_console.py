@@ -606,6 +606,21 @@ def size(n) -> str:
 templates.env.filters["size"] = size
 
 
+NOTIFICATIONS = ("SELECT n.id, n.user_id, n.pack, n.amount_paise, n.created_at, u.name, u.email, u.mobile, u.country_code "
+                 "FROM admin_notifications n JOIN users u ON u.id=n.user_id WHERE n.handled_at IS NULL AND u.deleted_at IS NULL ORDER BY n.id DESC LIMIT 50")
+
+
+@router.post("/admin/notifications/{nid}/handled")
+def notification_handled(request: Request, nid: int, csrf: str = Form("")):
+    u = admin_user(request)
+    if not u:
+        return to_login()
+    if security.check_csrf(csrf, f"adm{u['id']}"):
+        with tx() as conn:
+            conn.execute("UPDATE admin_notifications SET handled_at=datetime('now'), handled_by=? WHERE id=? AND handled_at IS NULL", (u["id"], nid))
+    return finish(RedirectResponse("/admin", status_code=303), u)
+
+
 @router.get("/admin")
 def dashboard(request: Request, days: int = 30, test: int = 0):
     u = admin_user(request)
@@ -622,7 +637,9 @@ def dashboard(request: Request, days: int = 30, test: int = 0):
         "banks": hbars(a["banks"]), "fails": hbars(a["fails"], "s2"), "packs": hbars(a["packs"]), "roles": hbars(a["roles"]),
         "funnel": hbars([(n, v, f"{num(v)} · {pct(v, a['funnel'][0][1])}") for n, v in a["funnel"]]),
     }
-    return page(request, "console_dashboard.html", u, a=a, k=k, ch=charts, days=days, test=test, nav="dashboard", disk=storage(), warn_at=WARN_AT, danger_at=DANGER_AT,
+    with db() as c:
+        notes = c.execute(NOTIFICATIONS).fetchall()
+    return page(request, "console_dashboard.html", u, notes=notes, packs={p["id"]: p["name"] for p in config.PACKS}, a=a, k=k, ch=charts, days=days, test=test, nav="dashboard", disk=storage(), warn_at=WARN_AT, danger_at=DANGER_AT,
                 success=pct(k["w_done"], k["w_done"] + k["w_failed"]), now=datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S"))
 
 

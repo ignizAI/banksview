@@ -707,6 +707,8 @@ def topup(request: Request, pack: str = Form(""), coupon: str = Form(""), csrf: 
             return fail("The first-report offer is only for your first report and can be used once.")
     if config.PAYMENT_MODE == "contact_admin":
         audit(request, user["id"], "plan_requested", pk["id"])
+        with tx() as conn:      # one notification per click, shown on the admin dashboard
+            conn.execute("INSERT INTO admin_notifications(kind, user_id, pack, amount_paise) VALUES ('plan_request',?,?,?)", (user["id"], pk["id"], pk["paise"]))
         return _wallet_page(request, user, notice=f"You chose {pk['name']} ({fmt_paise(pk['paise'])}). Online payment is not switched on yet, so please contact the admin to pay. Your wallet is credited as soon as the admin confirms your payment.")
     try:
         order = payments.create_order(user["id"], pk["paise"], coupon.strip() or None, pack=pk["id"])

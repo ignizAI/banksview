@@ -94,6 +94,17 @@ CREATE TABLE IF NOT EXISTS audit_log (       -- append-only record of who did wh
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS ix_audit_user ON audit_log(user_id, id);
+CREATE TABLE IF NOT EXISTS admin_notifications (  -- things an admin should act on, e.g. a customer chose a plan and needs to pay
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,                       -- plan_request
+    user_id INTEGER NOT NULL,
+    pack TEXT,
+    amount_paise INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    handled_at TEXT,
+    handled_by INTEGER
+);
+CREATE INDEX IF NOT EXISTS ix_adm_notif ON admin_notifications(handled_at, id);
 CREATE TABLE IF NOT EXISTS admin_sessions (  -- one row per admin sign-in: when it started, last activity, and how it ended
     sid TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id),
