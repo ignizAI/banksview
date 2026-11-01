@@ -14,7 +14,7 @@
 <div class="card"><div class="tablewrap"><table>
 <tr><th>Customer</th><th>Company</th><th>Role</th><th>Joined</th><th>Last active</th><th class="n">Wallet</th><th class="n">Added</th><th class="n">Spent</th><th class="n">Uploaded</th><th class="n">Generated</th><th class="n">Failed</th><th class="n">Downloads</th></tr>
 {% for r in rows %}<tr>
- <td><a href="/admin/customers/{{ r.id }}">{{ r.name }}</a>{% if r.is_master %} <span class="pill">test</span>{% endif %}{% if r.is_admin %} <span class="pill">admin</span>{% endif %}<small>{{ r.email }}{% if r.mobile %} · {{ r.mobile }}{% endif %}</small></td>
+ <td><a href="/admin/customers/{{ r.id }}">{{ r.name }}</a>{% if r.is_master %} <span class="pill">test</span>{% endif %}{% if r.is_admin %} <span class="pill">admin</span>{% endif %}<small>{{ r.email }}{% if r.mobile %} · {{ r.country_code }} {{ r.mobile }}{% endif %}</small></td>
  <td>{{ r.org or '-' }}</td><td>{{ r.role }}</td><td class="nw">{{ r.created_at | ist('%d %b %Y') }}</td><td class="nw">{{ r.last_seen | ist('%d %b, %H:%M') }}</td>
  <td class="n">{{ r.balance_paise | paise }}</td><td class="n">{{ r.topped | paise }}</td><td class="n">{{ r.spent | paise }}</td>
  <td class="n">{{ r.uploaded }}</td><td class="n">{{ r.generated }}</td><td class="n">{{ r.failed }}</td><td class="n">{{ r.downloads }}</td></tr>

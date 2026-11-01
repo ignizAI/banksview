@@ -9,7 +9,8 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <div class="field"><label for="n">Name</label><input id="n" name="name" value="{{ form.name or '' }}" required maxlength="120" autofocus></div>
     <div class="field"><label for="e">Email</label><input id="e" type="email" name="email" value="{{ form.email or '' }}" required maxlength="200" autocapitalize="none"></div>
-    <div class="field"><label for="m">Mobile</label><input id="m" name="mobile" inputmode="tel" value="{{ form.mobile or '' }}" required placeholder="10-digit Indian number"></div>
+    <div class="field"><label for="m">Mobile</label><div class="phone"><select name="country" aria-label="Country code">{% for code, cname in COUNTRIES %}<option value="{{ code }}" {{ 'selected' if (form.country or '+91') == code }}>{{ code }} {{ cname }}</option>{% endfor %}</select>
+      <input id="m" name="mobile" inputmode="numeric" pattern="[0-9]*" maxlength="14" value="{{ form.mobile or '' }}" required placeholder="9876543210" data-digits></div><small>Digits only, no spaces. Type the number without the country code.</small></div>
     <div class="field"><label for="r">Role</label><select id="r" name="role" required>
       <option value="">Choose a role</option>{% for k, v in roles.items() %}<option value="{{ k }}" {{ 'selected' if form.role == k }}>{{ v }}</option>{% endfor %}</select></div>
     <div class="field"><label for="o">Company <span class="muted">(optional)</span></label><input id="o" name="org" value="{{ form.org or '' }}" maxlength="120"></div>
@@ -18,3 +19,4 @@
   </form>
 </section>
 {% endblock %}
+{% block scripts %}<script src="/static/phone.js?v={{ ASSET_A }}"></script>{% endblock %}

@@ -408,3 +408,4 @@ footer .powered{font-size:12.5px;color:var(--muted)}footer .powered b{color:var(
 @media print{.wm{display:none}}
 
 .brand{display:inline-flex;align-items:center;gap:9px}.brand em{font-style:normal}.brand-mark{display:block;width:30px;height:30px;border-radius:8px;flex:none}a.brand:hover{text-decoration:none}.foot-cols a.brand{font-size:20px}
+.phone{display:flex;gap:8px}.phone select{flex:0 0 auto;width:auto;max-width:46%;min-width:96px}.phone input{flex:1 1 auto;min-width:0}

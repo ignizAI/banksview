@@ -2,7 +2,7 @@
 {% block body %}
 <p style="margin:0 0 6px"><a href="/admin/customers">&larr; All customers</a></p>
 <h1>{{ c.name }}{% if c.deleted_at %} <span class="pill bad">deleted</span>{% endif %}{% if c.is_master %} <span class="pill">test account</span>{% endif %}{% if c.is_admin %} <span class="pill">admin</span>{% endif %}</h1>
-<p class="sub">{% if c.deleted_at %}Deleted {{ c.deleted_at | ist }}{% else %}{{ c.email }}{% if c.mobile %} · {{ c.mobile }}{% endif %}{% endif %}</p>
+<p class="sub">{% if c.deleted_at %}Deleted {{ c.deleted_at | ist }}{% else %}{{ c.email }}{% if c.mobile %} · {{ c.country_code }} {{ c.mobile }}{% endif %}{% endif %}</p>
 {% if done == 'created' %}<div class="banner ok" role="status">Customer added. They sign in with the code sent to their email and accept the Terms on first sign-in.</div>{% endif %}
 {% if done == 'credited' %}<div class="banner ok" role="status">Credit added. The new balance is shown below and the entry is in the wallet history.</div>{% endif %}
 {% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}

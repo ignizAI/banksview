@@ -1295,3 +1295,75 @@ def test_logo_and_favicons_are_served_and_linked(client):
         assert r.status_code == 200 and r.headers["content-type"].startswith(kind), path
     assert "img-src 'self'" in client.get("/").headers["content-security-policy"]
     assert "/static/favicon.svg" in client.get("/admin/login").text
+
+
+# ----------------------------------------------------------------------------- phone numbers: digits only, with a country code
+def _signup_data(client, **over):
+    r = client.get("/signup")
+    data = {"name": "A", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "dsa", "csrf": csrf_from(r.text),
+            "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
+    data.update(over)
+    return data
+
+
+def test_signup_form_has_a_country_code_and_a_digits_only_number(client):
+    html = client.get("/signup").text
+    assert 'name="country"' in html and "+91 India" in html and "+971 UAE" in html
+    assert 'name="mobile"' in html and "data-digits" in html and 'pattern="[0-9]*"' in html and 'placeholder="9876543210"' in html
+    assert "/static/phone.js" in html
+    js = client.get("/static/phone.js")
+    assert js.status_code == 200 and "\\D" in js.text
+
+
+@pytest.mark.parametrize("country,raw,expect", [("+91", "9812345678", ("+91", "9812345678")), ("+91", "98123 45678", ("+91", "9812345678")),
+                                                ("+91", "+91 98123-45678", ("+91", "9812345678")), ("+91", "09812345678", ("+91", "9812345678")),
+                                                ("+971", "50 123 4567", ("+971", "501234567")), ("+971", "+971501234567", ("+971", "501234567")),
+                                                ("+44", "7700 900123", ("+44", "7700900123")), ("971", "501234567", ("+971", "501234567"))])
+def test_parse_phone_accepts_and_cleans(country, raw, expect):
+    from app import otp
+    assert otp.parse_phone(country, raw) == expect
+
+
+@pytest.mark.parametrize("country,raw", [("+91", "12345"), ("+91", "5812345678"), ("+91", ""), ("+971", "123"), ("+971", "1" * 16), ("+999", "9812345678"), ("+91", "abcdefghij")])
+def test_parse_phone_rejects(country, raw):
+    from app import otp
+    with pytest.raises(otp.PhoneError):
+        otp.parse_phone(country, raw)
+
+
+def test_signup_stores_country_code_and_number_without_spaces(client):
+    r = client.post("/signup", data=_signup_data(client, mobile="50 123 4567", country="+971"), follow_redirects=False)
+    assert r.status_code == 303
+    import json
+    from app.db import db
+    with db() as c:
+        row = c.execute("SELECT payload FROM otps").fetchone()
+    assert '"mobile": "501234567"' in row["payload"] and '"country": "+971"' in row["payload"] and " " not in json.loads(row["payload"])["mobile"]
+
+
+def test_error_messages_for_bad_numbers(client):
+    assert "10-digit" in client.post("/signup", data=_signup_data(client, mobile="12345")).text
+    assert "6 to 14 digits" in client.post("/signup", data=_signup_data(client, mobile="123", country="+971")).text
+    assert "country code" in client.post("/signup", data=_signup_data(client, country="+999")).text.lower()
+
+
+def test_same_number_is_allowed_in_different_countries_but_not_twice(client):
+    from app.db import tx
+    with tx() as c:
+        c.execute("INSERT INTO users(email,password_hash,name,role,mobile,country_code) VALUES ('x@y.co','h','X','dsa','9876501234','+971')")
+    assert client.post("/signup", data=_signup_data(client, mobile="9876501234", country="+91"), follow_redirects=False).status_code == 303          # same digits, different country
+    assert client.post("/signup", data=_signup_data(client, email="n@y.co", mobile="987 650 1234", country="+971"), follow_redirects=False).status_code == 409   # same country and number
+
+
+def test_existing_accounts_get_the_indian_code_on_upgrade(tmp_path, monkeypatch):
+    import sqlite3
+    from app import config, db as dbm
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.executescript("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, name TEXT NOT NULL, org TEXT, role TEXT NOT NULL, mobile TEXT, balance_paise INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')));"
+                      "INSERT INTO users(email,password_hash,name,role,mobile) VALUES ('o@d.co','h','Old','dsa','9812345678');")
+    con.commit(); con.close()
+    monkeypatch.setattr(config, "DB_PATH", path)
+    dbm.init_db()
+    with dbm.db() as c:
+        assert c.execute("SELECT country_code FROM users").fetchone()[0] == "+91"

@@ -173,7 +173,7 @@ def init_db() -> None:
         for col, ddl in (("is_master", "INTEGER NOT NULL DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER NOT NULL DEFAULT 0"),
                          ("has_password", "INTEGER NOT NULL DEFAULT 1"), ("mobile_verified", "INTEGER NOT NULL DEFAULT 0"),
                          ("privileged", "INTEGER NOT NULL DEFAULT 0"), ("price_paise", "INTEGER"), ("session_epoch", "INTEGER NOT NULL DEFAULT 0"),
-                         ("is_admin", "INTEGER NOT NULL DEFAULT 0"), ("deleted_at", "TEXT")):   # is_admin: may open the admin console (separate from master test accounts)
+                         ("is_admin", "INTEGER NOT NULL DEFAULT 0"), ("deleted_at", "TEXT"), ("country_code", "TEXT NOT NULL DEFAULT '+91'")):   # is_admin: may open the admin console (separate from master test accounts)
             if col not in cols:  # databases created before this column existed
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         lcols = {r["name"] for r in conn.execute("PRAGMA table_info(wallet_ledger)")}
@@ -184,8 +184,9 @@ def init_db() -> None:
         for col, ddl in (("credit_paise", "INTEGER"), ("coupon_code", "TEXT"), ("pack", "TEXT")):
             if col not in pcols:
                 conn.execute(f"ALTER TABLE payments ADD COLUMN {col} {ddl}")
-        try:   # one account per mobile number (ignored if old test data already shares a number)
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_mobile ON users(mobile) WHERE mobile IS NOT NULL")
+        try:   # one account per phone number (country code + number); ignored if old test data already shares a number
+            conn.execute("DROP INDEX IF EXISTS ux_users_mobile")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_phone ON users(country_code, mobile) WHERE mobile IS NOT NULL")
         except Exception:
             pass
         rcols = {r["name"] for r in conn.execute("PRAGMA table_info(reports)")}

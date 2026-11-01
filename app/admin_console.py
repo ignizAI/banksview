@@ -15,6 +15,7 @@ import csv
 import io
 import math
 import os
+import re
 import secrets
 import shutil
 import time
@@ -441,7 +442,7 @@ Q = {
 }
 
 CUSTOMER_SQL = f"""
-SELECT u.id, u.name, u.email, u.mobile, u.org, u.role, u.created_at, u.balance_paise, u.held_paise, u.is_master, u.is_admin,
+SELECT u.id, u.name, u.email, u.mobile, u.country_code, u.org, u.role, u.created_at, u.balance_paise, u.held_paise, u.is_master, u.is_admin,
        COALESCE(p.topped,0) topped, COALESCE(p.n,0) payments, COALESCE(r.spent,0) spent, COALESCE(r.up,0) uploaded,
        COALESCE(r.done,0) generated, COALESCE(r.failed,0) failed, COALESCE(r.dl,0) downloads,
        (SELECT MAX(a.created_at) FROM audit_log a WHERE a.user_id=u.id) last_seen
@@ -450,7 +451,7 @@ LEFT JOIN (SELECT user_id, SUM(amount_paise) topped, COUNT(*) n FROM payments WH
 LEFT JOIN (SELECT user_id, COUNT(*) up, SUM(status='done') done, SUM(status='failed') failed, SUM(charged_paise) spent, SUM(download_count) dl
            FROM reports GROUP BY user_id) r ON r.user_id=u.id
 WHERE {T} AND u.deleted_at IS NULL
-  AND (:q='' OR u.email LIKE :like ESCAPE '\\' OR u.name LIKE :like ESCAPE '\\' OR u.mobile LIKE :like ESCAPE '\\' OR u.org LIKE :like ESCAPE '\\')
+  AND (:q='' OR u.email LIKE :like ESCAPE '\\' OR u.name LIKE :like ESCAPE '\\' OR (u.country_code || u.mobile) LIKE :like ESCAPE '\\' OR u.org LIKE :like ESCAPE '\\')
 """
 CUSTOMER_COUNT = f"SELECT COUNT(*) FROM ({CUSTOMER_SQL})"
 _CUSTOMER_ORDER = {"new": "u.id DESC", "spend": "spent DESC, u.id DESC", "reports": "uploaded DESC, u.id DESC", "downloads": "downloads DESC, u.id DESC",
@@ -477,7 +478,7 @@ RP_SUMMARY = (f"SELECT COUNT(*) up, COALESCE(SUM(r.status='done'),0) done, COALE
 # Raw tables. Only these columns are ever shown or exported: no password hashes, authenticator secrets, sign-in codes, file names,
 # borrower references, statement summaries or server file paths.
 _TABLE_DEFS = {
-    "users": (["id", "email", "name", "org", "role", "mobile", "balance_paise", "held_paise", "is_master", "is_admin", "mfa_enabled", "has_password",
+    "users": (["id", "email", "name", "org", "role", "country_code", "mobile", "balance_paise", "held_paise", "is_master", "is_admin", "mfa_enabled", "has_password",
                "mobile_verified", "privileged", "price_paise", "created_at"], "id DESC"),
     "wallet_ledger": (["id", "user_id", "kind", "amount_paise", "balance_after_paise", "ref", "note", "created_at"], "id DESC"),
     "payments": (["id", "user_id", "provider", "order_id", "payment_id", "amount_paise", "credit_paise", "status", "pack", "coupon_code", "created_at", "paid_at"], "id DESC"),
@@ -496,7 +497,7 @@ TABLE_NOTES = {
     "consents": "Which Terms, Privacy and borrower-consent versions each user accepted, and from where.",
     "audit_log": "Who did what: sign-ins, uploads, views, downloads, admin actions.",
 }
-CUSTOMER_ONE = ("SELECT id, name, email, mobile, org, role, created_at, balance_paise, held_paise, privileged, price_paise, mfa_enabled, mobile_verified, "
+CUSTOMER_ONE = ("SELECT id, name, email, mobile, country_code, org, role, created_at, balance_paise, held_paise, privileged, price_paise, mfa_enabled, mobile_verified, "
                 "is_master, is_admin, deleted_at FROM users WHERE id=?")
 
 
@@ -680,25 +681,29 @@ def customer_new_page(request: Request):
 
 
 @router.post("/admin/customers/new")
-def customer_new(request: Request, name: str = Form(""), email: str = Form(""), mobile: str = Form(""), role: str = Form(""), org: str = Form(""),
+def customer_new(request: Request, name: str = Form(""), email: str = Form(""), mobile: str = Form(""), country: str = Form("+91"), role: str = Form(""), org: str = Form(""),
                  credit: str = Form(""), csrf: str = Form("")):
     u = admin_user(request)
     if not u:
         return to_login()
-    form = {"name": name.strip()[:120], "email": email.strip().lower()[:200], "mobile": mobile.strip()[:20], "role": role, "org": org.strip()[:120], "credit": credit.strip()[:12]}
+    form = {"name": name.strip()[:120], "email": email.strip().lower()[:200], "mobile": re.sub(r"[^\d+]", "", mobile)[:20], "country": country, "role": role, "org": org.strip()[:120], "credit": credit.strip()[:12]}
 
     def fail(msg, code=422):
         return page(request, "console_customer_new.html", u, code=code, error=msg, form=form, roles=ROLES, max_credit=fmt_paise(config.MAX_TOPUP_PAISE), nav="customers")
 
     if not security.check_csrf(csrf, f"adm{u['id']}"):
         return fail("Your session expired. Please reload and try again.", 400)
-    num = otp.clean_mobile(form["mobile"])
+    try:
+        cc, num = otp.parse_phone(country, mobile)
+    except otp.PhoneError as e:
+        cc = num = None
+        phone_error = str(e)
     if not form["name"]:
         return fail("Please enter the customer's name.")
     if not EMAIL_RX.match(form["email"]):
         return fail("Please enter a valid email address.")
     if not num:
-        return fail("Enter a valid 10-digit Indian mobile number.")
+        return fail(phone_error)
     if form["role"] not in ROLES:
         return fail("Please choose a role.")
     paise = 0
@@ -711,8 +716,8 @@ def customer_new(request: Request, name: str = Form(""), email: str = Form(""), 
             return fail(f"Starting credit cannot be more than {fmt_paise(config.MAX_TOPUP_PAISE)}.")
     try:
         with tx() as conn:
-            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, has_password, mobile_verified) VALUES (?,?,?,?,?,?,0,0)",
-                               (form["email"], security.hash_password(secrets.token_urlsafe(32)), form["name"], form["org"] or None, form["role"], num))
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,0,0)",
+                               (form["email"], security.hash_password(secrets.token_urlsafe(32)), form["name"], form["org"] or None, form["role"], num, cc))
             uid = cur.lastrowid
     except Exception as e:
         if "UNIQUE" in str(e):
@@ -880,9 +885,9 @@ def _safe_cell(v):
     return v
 
 
-CUSTOMER_CSV = (["id", "name", "email", "mobile", "org", "role", "joined_utc", "balance_paise", "held_paise", "is_master", "is_admin", "topped_up_paise",
+CUSTOMER_CSV = (["id", "name", "email", "country_code", "mobile", "org", "role", "joined_utc", "balance_paise", "held_paise", "is_master", "is_admin", "topped_up_paise",
                  "payments", "spent_paise", "uploaded", "generated", "failed", "downloads", "last_seen_utc"],
-                ["id", "name", "email", "mobile", "org", "role", "created_at", "balance_paise", "held_paise", "is_master", "is_admin", "topped", "payments",
+                ["id", "name", "email", "country_code", "mobile", "org", "role", "created_at", "balance_paise", "held_paise", "is_master", "is_admin", "topped", "payments",
                  "spent", "uploaded", "generated", "failed", "downloads", "last_seen"])
 
 

@@ -116,7 +116,7 @@ templates.env.globals.update(BRAND=config.BRAND, BRAND_HEAD=_head, BRAND_TAIL=_t
                              MIN_TOPUP_RUPEES=config.MIN_TOPUP_PAISE // 100, PRIV_PRICE=config.PRIVILEGED_PRICE_PAISE, MAX_MB=config.MAX_UPLOAD_MB, METRIC_COUNT=len(metrics.REGISTRY), DUP_DAYS=config.DUPLICATE_WINDOW_DAYS, RETAIN_DAYS=config.REPORT_RETENTION_DAYS, PAYMENT_MODE=config.PAYMENT_MODE,
                              BANKS=banks.SUPPORTED_BANKS, BANK_COUNT=banks.BANK_COUNT, COMPANY_NAME=config.COMPANY_NAME, COMPANY_ADDRESS=config.COMPANY_ADDRESS,
                              GRIEVANCE_EMAIL=config.GRIEVANCE_EMAIL, GRIEVANCE_OFFICER=config.GRIEVANCE_OFFICER, TERMS_VERSION=config.TERMS_VERSION,
-                             CAP_MONTHS=config.LIABILITY_CAP_MONTHS, JURISDICTION=config.JURISDICTION_CITY, MFA_REQUIRED=config.MFA_REQUIRED, COUPON_PERCENT=config.COUPON_PERCENT, COUPONS_ENABLED=config.COUPONS_ENABLED)
+                             CAP_MONTHS=config.LIABILITY_CAP_MONTHS, JURISDICTION=config.JURISDICTION_CITY, MFA_REQUIRED=config.MFA_REQUIRED, COUPON_PERCENT=config.COUPON_PERCENT, COUPONS_ENABLED=config.COUPONS_ENABLED, COUNTRIES=otp.COUNTRIES)
 
 FLASH = {
     "upi_review": ("ok", "Thanks. We received your reference number and will credit your wallet once the payment is confirmed in our bank account."),
@@ -254,10 +254,10 @@ def signup_page(request: Request):
 
 @app.post("/signup", response_class=HTMLResponse)
 def signup(request: Request, name: str = Form(""), email: str = Form(""), org: str = Form(""),
-           role: str = Form(""), mobile: str = Form(""), csrf: str = Form(""), agree_terms: str = Form(""), agree_privacy: str = Form(""),
+           role: str = Form(""), mobile: str = Form(""), country: str = Form("+91"), csrf: str = Form(""), agree_terms: str = Form(""), agree_privacy: str = Form(""),
            agree_borrower: str = Form("")):
     """Step 1: check the details and email a code to the address. The account is created only after the code is verified."""
-    form = {"name": name, "email": email, "org": org, "role": role, "mobile": mobile}
+    form = {"name": name, "email": email, "org": org, "role": role, "mobile": re.sub(r"[^\d+]", "", mobile or ""), "country": country}
 
     def fail(msg, code=422):
         return render(request, "signup.html", status=code, roles=ROLES, form=form, error=msg)
@@ -270,23 +270,27 @@ def signup(request: Request, name: str = Form(""), email: str = Form(""), org: s
         return fail("Too many sign-ups from this network. Try again later.", 429)
     email = email.strip().lower()
     name, org = name.strip(), org.strip()
-    num = otp.clean_mobile(mobile)
+    try:
+        cc, num = otp.parse_phone(country, mobile)
+    except otp.PhoneError as e:
+        cc = num = None
+        phone_error = str(e)
     if not name:
         return fail("Please enter your name.")
     if not EMAIL_RX.match(email):
         return fail("Please enter a valid email address.")
     if not num:
-        return fail("Enter a valid 10-digit Indian mobile number.")
+        return fail(phone_error)
     if role not in ROLES:
         return fail("Please choose whether you are a lender, agent or DSA.")
     if not (agree_terms and agree_privacy and agree_borrower):
         return fail("To create an account you must accept the Terms of Use, the Privacy Policy and the borrower-consent undertaking.")
     with db() as conn:
-        taken = conn.execute("SELECT 1 FROM users WHERE email=? OR mobile=?", (email, num)).fetchone()
+        taken = conn.execute("SELECT 1 FROM users WHERE email=? OR (country_code=? AND mobile=?)", (email, cc, num)).fetchone()
     if taken:
         return fail("An account with this email or mobile number already exists. Sign in instead.", 409)
     try:
-        oid = otp.issue("signup", email, email, {"name": name, "org": org, "role": role, "mobile": num, "agree_ip": ip_of(request)})
+        oid = otp.issue("signup", email, email, {"name": name, "org": org, "role": role, "mobile": num, "country": cc, "agree_ip": ip_of(request)})
     except otp.OtpError as e:
         return fail(e.message, e.status)
     return _otp_cookie(redirect("/verify"), oid)
@@ -358,8 +362,8 @@ def verify_submit(request: Request, code: str = Form(""), csrf: str = Form("")):
         p = res["payload"]
         try:
             with tx() as conn:
-                cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, has_password, mobile_verified) VALUES (?,?,?,?,?,?,0,0)",
-                                   (res["email"], security.hash_password(secrets.token_urlsafe(32)), p["name"], p["org"] or None, p["role"], p.get("mobile")))
+                cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,0,0)",
+                                   (res["email"], security.hash_password(secrets.token_urlsafe(32)), p["name"], p["org"] or None, p["role"], p.get("mobile"), p.get("country") or "+91"))
                 uid = cur.lastrowid
                 record_consents(conn, uid, request)
         except Exception as e:
@@ -823,7 +827,7 @@ def coupons_create(request: Request, code: str = Form(""), percent: str = Form("
 
 def _users_ctx(error=None, created=None):
     with db() as conn:
-        rows = conn.execute("SELECT id, name, email, mobile, role, org, balance_paise, is_master, privileged, price_paise, created_at FROM users ORDER BY id DESC LIMIT 100").fetchall()
+        rows = conn.execute("SELECT id, name, email, mobile, country_code, role, org, balance_paise, is_master, privileged, price_paise, created_at FROM users ORDER BY id DESC LIMIT 100").fetchall()
     return {"rows": rows, "error": error, "created": created, "roles": ROLES}
 
 
@@ -837,7 +841,7 @@ def admin_users_page(request: Request):
 
 @app.post("/admin/users", response_class=HTMLResponse)
 def admin_users_create(request: Request, name: str = Form(""), email: str = Form(""), mobile: str = Form(""), role: str = Form(""),
-                       org: str = Form(""), credit: str = Form(""), privileged: str = Form(""), rate: str = Form(""), csrf: str = Form("")):
+                       org: str = Form(""), country: str = Form("+91"), credit: str = Form(""), privileged: str = Form(""), rate: str = Form(""), csrf: str = Form("")):
     """A master account can open an account for a customer. The customer signs in with the mobile code and accepts the Terms on first sign-in."""
     user = _master_only(request)
     if not user:
@@ -849,13 +853,17 @@ def admin_users_create(request: Request, name: str = Form(""), email: str = Form
     if not security.check_csrf(csrf, str(user["id"])):
         return fail("Your session expired. Please reload and try again.", 400)
     email, name, org = email.strip().lower(), name.strip(), org.strip()
-    num = otp.clean_mobile(mobile)
+    try:
+        cc, num = otp.parse_phone(country, mobile)
+    except otp.PhoneError as e:
+        cc = num = None
+        phone_error = str(e)
     if not name:
         return fail("Please enter the customer's name.")
     if not EMAIL_RX.match(email):
         return fail("Please enter a valid email address.")
     if not num:
-        return fail("Enter a valid 10-digit Indian mobile number.")
+        return fail(phone_error)
     if role not in ROLES:
         return fail("Please choose a role.")
     paise = 0
@@ -877,8 +885,8 @@ def admin_users_create(request: Request, name: str = Form(""), email: str = Form
             return fail(f"The privileged rate must be between Rs 1 and {fmt_paise(config.PRICE_PAISE)}.")
     try:
         with tx() as conn:
-            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, has_password, mobile_verified, privileged, price_paise) VALUES (?,?,?,?,?,?,0,0,?,?)",
-                               (email, security.hash_password(secrets.token_urlsafe(32)), name, org or None, role, num, priv, rate_paise))
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified, privileged, price_paise) VALUES (?,?,?,?,?,?,?,0,0,?,?)",
+                               (email, security.hash_password(secrets.token_urlsafe(32)), name, org or None, role, num, cc, priv, rate_paise))
             uid = cur.lastrowid
     except Exception as e:
         if "UNIQUE" in str(e):

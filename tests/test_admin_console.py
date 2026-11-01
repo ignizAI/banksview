@@ -563,3 +563,17 @@ def test_signin_screen_has_the_watermark_without_inline_script(client):
     assert re.search(r"<script(?![^>]*src=)[^>]*>", html) is None           # nothing inline: the page's script policy stays strict
     js = client.get("/static/admin-wm.js")
     assert js.status_code == 200 and "signbox" in js.text
+
+
+def test_admin_add_customer_with_a_country_code(admin):
+    from app.db import db
+    r = _new(admin, mobile="50 123 4567", country="+971")
+    assert r.status_code == 303
+    with db() as c:
+        u = c.execute("SELECT mobile, country_code FROM users WHERE email='meera@example.com'").fetchone()
+    assert (u["mobile"], u["country_code"]) == ("501234567", "+971")
+    page = admin.get(f"/admin/customers/{_cid('meera@example.com')}").text
+    assert "+971 501234567" in page and "+971 501234567" in admin.get("/admin/customers").text
+    assert "+971,501234567" in admin.get("/admin/export/customers.csv").text or "+971" in admin.get("/admin/export/customers.csv").text
+    assert _new(admin, email="m2@example.com", mobile="123", country="+971").status_code == 422
+    assert 'name="country"' in admin.get("/admin/customers/new").text and "data-digits" in admin.get("/admin/customers/new").text
