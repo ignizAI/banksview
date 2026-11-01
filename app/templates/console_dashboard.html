@@ -19,6 +19,22 @@
   <div class="kpi"><div class="l">Spent on reports</div><div class="v">{{ k.spent_total | paise }}</div><div class="d">{{ k.w_spent | paise }} in {{ days }} days</div></div>
   <div class="kpi"><div class="l">Wallet money held</div><div class="v">{{ k.wallet_balance | paise }}</div><div class="d">{{ k.wallet_held | paise }} reserved for reports in progress</div></div>
 </section>
+{% if disk.ok %}
+<section class="card" aria-label="Server storage">
+  <h2>Server storage <small>the disk that holds the database, reports and backups</small></h2>
+  {% if disk.level != 'ok' %}<div class="banner {{ 'warn' if disk.level == 'warn' else '' }}" role="alert">
+    {{ 'Almost full.' if disk.level == 'bad' else 'Getting full.' }} At 100% the site stops saving sign-ups, uploads and payments. Free space now: run <code>docker image prune -a</code> on the server, delete old files in the backups folder, or lower <code>REPORT_RETENTION_DAYS</code>; if it keeps growing, move to a bigger Lightsail plan.</div>{% endif %}
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline;margin-bottom:6px">
+    <div><span class="kpi-v" style="font-size:26px;font-weight:650">{{ disk.pct }}%</span> <span class="muted">used &middot; {{ disk.used | size }} of {{ disk.total | size }}</span></div>
+    <div>{% if disk.level == 'ok' %}<span class="pill ok">Healthy</span>{% elif disk.level == 'warn' %}<span class="pill warn">Getting full</span>{% else %}<span class="pill bad">Almost full</span>{% endif %}
+      <span class="muted">{{ disk.free | size }} free</span></div>
+  </div>
+  <div class="meter" role="img" aria-label="{{ disk.pct }} percent of the disk is used"><i class="{{ disk.level }}" style="width:{{ [disk.pct, 100] | min }}%"></i><b style="left:{{ warn_at }}%"></b><b style="left:{{ danger_at }}%"></b></div>
+  <p class="muted" style="margin:6px 0 12px;font-size:12.5px">Marks at {{ warn_at }}% and {{ danger_at }}%: act when the bar reaches the first one.</p>
+  <div class="tablewrap"><table><tr><th>What is using it</th><th class="n">Size</th></tr>
+  {% for name, b in disk.parts %}<tr><td>{{ name }}</td><td class="n">{{ b | size }}</td></tr>{% endfor %}</table></div>
+</section>
+{% endif %}
 {% if k.pay_review %}<div class="card" style="border-color:var(--warn)"><strong>{{ k.pay_review }} UPI payment{{ '' if k.pay_review == 1 else 's' }} waiting for review.</strong> <a href="/admin/transactions?status=review">See them</a> · approve in the main site's master area.</div>{% endif %}
 
 <div class="grid2">

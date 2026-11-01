@@ -14,7 +14,9 @@ from __future__ import annotations
 import csv
 import io
 import math
+import os
 import secrets
+import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from html import escape
@@ -404,6 +406,53 @@ def analytics(days: int, include_test: bool) -> dict:
     return out
 
 
+WARN_AT, DANGER_AT = 70, 85          # percent of the disk used
+_size_cache: dict = {}
+
+
+def _tree_bytes(path) -> int:
+    """Total size of the files under a folder (0 if it does not exist). Cached for a minute: a big reports folder is slow to walk."""
+    hit = _size_cache.get(str(path))
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    _size_cache[str(path)] = (time.time(), total)
+    return total
+
+
+def storage() -> dict:
+    """How full the disk that holds the database is, and what is using it. Read straight from the server."""
+    try:
+        du = shutil.disk_usage(config.DATA_DIR)
+    except OSError:
+        return {"ok": False}
+    db_bytes = sum(os.path.getsize(f) for f in (str(config.DB_PATH), str(config.DB_PATH) + "-wal", str(config.DB_PATH) + "-shm") if os.path.exists(f))
+    reports = _tree_bytes(config.REPORT_DIR)
+    backups = _tree_bytes(config.DATA_DIR / "backups")
+    pct_used = round(du.used * 100 / du.total, 1) if du.total else 0
+    return {"ok": True, "total": du.total, "used": du.used, "free": du.free, "pct": pct_used,
+            "level": "bad" if pct_used >= DANGER_AT else "warn" if pct_used >= WARN_AT else "ok",
+            "parts": [("Database", db_bytes), ("Report files (Excel)", reports), ("Database backups", backups),
+                      ("Everything else on this disk (system, Docker images, logs)", max(0, du.used - db_bytes - reports - backups))]}
+
+
+def size(n) -> str:
+    n = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+templates.env.filters["size"] = size
+
+
 @router.get("/admin")
 def dashboard(request: Request, days: int = 30, test: int = 0):
     u = admin_user(request)
@@ -420,7 +469,7 @@ def dashboard(request: Request, days: int = 30, test: int = 0):
         "banks": hbars(a["banks"]), "fails": hbars(a["fails"], "s2"), "packs": hbars(a["packs"]), "roles": hbars(a["roles"]),
         "funnel": hbars([(n, v, f"{num(v)} · {pct(v, a['funnel'][0][1])}") for n, v in a["funnel"]]),
     }
-    return page(request, "console_dashboard.html", u, a=a, k=k, ch=charts, days=days, test=test, nav="dashboard",
+    return page(request, "console_dashboard.html", u, a=a, k=k, ch=charts, days=days, test=test, nav="dashboard", disk=storage(), warn_at=WARN_AT, danger_at=DANGER_AT,
                 success=pct(k["w_done"], k["w_done"] + k["w_failed"]), now=datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S"))
 
 

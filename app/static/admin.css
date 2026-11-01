@@ -94,3 +94,9 @@ body.signin{display:grid;place-items:center;min-height:100vh;padding:20px}
 .fine{color:var(--muted);font-size:12.5px;margin:16px 0 0}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media print{.bar,.filters,.pager{display:none}}
+
+/* storage meter */
+.meter{position:relative;height:12px;border-radius:99px;background:var(--hover);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:99px;background:var(--s1)}.meter i.warn{background:#d99a00}.meter i.bad{background:var(--bad)}
+.meter b{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--surface);opacity:.9}
+code{background:var(--hover);padding:1px 5px;border-radius:5px;font-size:12.5px}

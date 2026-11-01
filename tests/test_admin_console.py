@@ -423,3 +423,29 @@ def test_admin_master_and_own_accounts_cannot_be_deleted(admin):
 def test_console_is_always_light():
     css = open("app/static/admin.css").read()
     assert "prefers-color-scheme" not in css and 'data-theme="dark"' not in css and "color-scheme:light" in css
+
+
+
+def test_dashboard_shows_server_storage(admin):
+    r = admin.get("/admin")
+    assert r.status_code == 200 and "Server storage" in r.text and "Report files (Excel)" in r.text and "Database backups" in r.text
+    assert "app.db" not in r.text and "/tmp" not in r.text and "backups/" not in r.text           # no server paths on the page
+
+
+@pytest.mark.parametrize("pct,level", [(10, "ok"), (69.9, "ok"), (70, "warn"), (84.9, "warn"), (85, "bad"), (99, "bad")])
+def test_storage_levels(monkeypatch, pct, level):
+    import collections
+    from app import admin_console
+    du = collections.namedtuple("du", "total used free")
+    monkeypatch.setattr(admin_console.shutil, "disk_usage", lambda p: du(1000, int(pct * 10), 1000 - int(pct * 10)))
+    assert admin_console.storage()["level"] == level
+
+
+def test_storage_warning_banner_and_size_format(admin, monkeypatch):
+    import collections
+    from app import admin_console
+    du = collections.namedtuple("du", "total used free")
+    monkeypatch.setattr(admin_console.shutil, "disk_usage", lambda p: du(40 * 1024 ** 3, 36 * 1024 ** 3, 4 * 1024 ** 3))
+    page = admin.get("/admin").text
+    assert "Almost full" in page and "90.0%" in page and "36.0 GB of 40.0 GB" in page and "docker image prune" in page
+    assert admin_console.size(0) == "0 B" and admin_console.size(1536) == "1.5 KB"
