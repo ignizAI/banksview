@@ -37,11 +37,11 @@
   </section>
 </div>
 <script>
-(function(){var r=document.querySelectorAll('.pg-pack input'),go=document.getElementById('go');
+(function(){var CONTACT={{ 'true' if PAYMENT_MODE == 'contact_admin' else 'false' }};var r=document.querySelectorAll('.pg-pack input'),go=document.getElementById('go');
  function sel(){var c=document.querySelector('.pg-pack input:checked');r.forEach(function(i){i.parentNode.classList.toggle('on',i.checked)});
   if(!c){document.getElementById('sName').textContent='\u2014';document.getElementById('sRep').textContent='\u2014';document.getElementById('sPay').textContent='\u2014';go.disabled=true;go.textContent='Choose a pack';return}
   document.getElementById('sName').textContent=c.dataset.name;document.getElementById('sRep').textContent=c.dataset.rep;document.getElementById('sPay').textContent=c.dataset.pay;
-  go.disabled=false;go.textContent={{ "'Request this plan'" if PAYMENT_MODE == 'contact_admin' else "'Continue to pay '+c.dataset.pay" }}}
+  go.disabled=false;go.textContent=CONTACT?'Request this plan':'Continue to pay '+c.dataset.pay}
  r.forEach(function(i){i.addEventListener('change',sel)});sel()})();
 </script>
 <div class="card"><h2>Transactions</h2>

@@ -1349,3 +1349,13 @@ def test_contact_admin_mode_lets_new_user_pick_a_plan_without_paying(client, mon
         assert c.execute("SELECT COUNT(*) FROM payments").fetchone()[0] == 0
         assert c.execute("SELECT ref FROM audit_log WHERE event='plan_requested'").fetchone()[0] == "p250"
     assert balance(client) == 0
+
+
+def test_wallet_script_is_valid_javascript_in_every_payment_mode(user, monkeypatch):
+    for mode in ("mock", "contact_admin"):
+        monkeypatch.setattr(config, "PAYMENT_MODE", mode)
+        html = user.get("/wallet").text
+        script = html[html.index("(function(){var CONTACT"):]
+        script = script[:script.index("</script>")]
+        assert "&#" not in script and "&amp;" not in script and "&lt;" not in script
+        assert ("var CONTACT=true" if mode == "contact_admin" else "var CONTACT=false") in script
