@@ -1370,3 +1370,12 @@ def test_default_payment_mode_never_credits_a_wallet_by_itself(client, monkeypat
     monkeypatch.setattr(config, "PAYMENT_MODE", "contact_admin")
     with pytest.raises(payments.PaymentError):
         payments.create_order(1, 25000, pack="p250")
+
+
+def test_upload_form_shows_with_zero_balance_and_sends_to_wallet(user):
+    page = user.get("/dashboard").text
+    assert 'id="up"' in page and "Generate report" in page and 'data-low="1"' in page
+    r = upload(user, GOOD)
+    assert r.status_code == 303 and r.headers["location"] == "/wallet?m=need_balance"
+    add_money(user, 1000)
+    assert 'data-low="1"' not in user.get("/dashboard").text
