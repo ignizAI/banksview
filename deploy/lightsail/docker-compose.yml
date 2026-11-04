@@ -1,0 +1,43 @@
+# BanksView on AWS Lightsail: app + Caddy (automatic HTTPS). Run from this folder: docker compose up -d --build
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      DATA_DIR: /data
+      BACKUP_DAILY: "1"
+    volumes:
+      - ./data:/data              # database, reports, backups: this folder IS your data, snapshot it
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u;u.urlopen('http://127.0.0.1:8000/health',timeout=4)"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1200m
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  caddy_data:
+  caddy_config:
