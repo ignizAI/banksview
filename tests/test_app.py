@@ -16,7 +16,7 @@ def test_signup_login_logout(client):
     from conftest import PASSWORD
     from app.db import db
     tok = csrf_from(client.get("/signup").text)
-    base = {"name": "Asha Rao", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "agent", "password": PASSWORD, "confirm": PASSWORD,
+    base = {"first_name": "Asha", "last_name": "Rao", "ft": __import__("app.security", fromlist=["x"]).make_form_token(int(__import__("time").time()) - 60), "website": "", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "agent", "password": PASSWORD, "confirm": PASSWORD,
             "csrf": tok, "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
     assert "valid email" in client.post("/signup", data={**base, "email": "nope"}).text
     assert "10-digit" in client.post("/signup", data={**base, "mobile": "12345"}).text
@@ -38,6 +38,8 @@ def test_signup_login_logout(client):
     assert out.status_code == 303
     client.cookies.clear()
     assert client.get("/dashboard", follow_redirects=False).status_code == 303
+    from app import security
+    security.signup_throttle.hits.clear()
     # the same email or mobile cannot sign up twice
     assert signup_otp(client, mobile="9812345678", email="other@b.co").status_code == 409
     assert signup_otp(client, mobile="9000000001", email="a@b.co").status_code == 409
@@ -71,10 +73,12 @@ def test_account_without_password_cannot_sign_in(client):
 
 def test_password_rules():
     from app import security
-    assert security.password_problem("correct-horse-battery", "a@b.co", "Asha")  is None
+    assert security.password_problem("Horse-battery-42", "a@b.co", "Asha")  is None
     assert security.password_problem("short1", "a@b.co", "Asha")
     assert security.password_problem("password123", "a@b.co", "Asha")
-    assert security.password_problem("x" * 129, "a@b.co", "Asha")
+    assert security.password_problem("x" * 17 + "y1", "a@b.co", "Asha")
+    assert security.password_problem("Abcdefg1Abcdefg1", "a@b.co", "Asha") is None        # exactly 16 is fine
+    assert security.password_problem("Abcdefg1Abcdefg12", "a@b.co", "Asha")               # 17 is not
     assert security.password_problem("aaaaaaaaaa", "a@b.co", "Asha")
     assert security.password_problem("ashleyrao-2024", "ashleyrao@b.co", "Asha")      # contains the email name
 
@@ -851,7 +855,7 @@ def test_master_creates_user_who_signs_in_with_password(client):
     _make_master(client)
     page = client.get("/admin/users")
     assert page.status_code == 200
-    data = {"name": "Ravi K", "email": "ravi@example.com", "mobile": "98111 22233", "role": "agent", "org": "RK Loans", "credit": "300", "password": "Welcome-pass-2024", "csrf": csrf_from(page.text)}
+    data = {"name": "Ravi K", "email": "ravi@example.com", "mobile": "98111 22233", "role": "agent", "org": "RK Loans", "credit": "300", "password": "Welcome-pass-24", "csrf": csrf_from(page.text)}
     assert client.post("/admin/users", data={**data, "email": "bad"}).status_code == 422
     assert client.post("/admin/users", data={**data, "password": "abc"}).status_code == 422
     assert client.post("/admin/users", data={**data, "mobile": "123"}).status_code == 422
@@ -864,7 +868,7 @@ def test_master_creates_user_who_signs_in_with_password(client):
         assert (u["balance_paise"], u["has_password"], u["mobile"]) == (30000, 1, "9811122233")
         assert c.execute("SELECT COUNT(*) n FROM consents WHERE user_id=(SELECT id FROM users WHERE email='ravi@example.com')").fetchone()["n"] == 0
     client.cookies.clear()
-    r = otp_login(client, email="ravi@example.com", password="Welcome-pass-2024")
+    r = otp_login(client, email="ravi@example.com", password="Welcome-pass-24")
     assert r.status_code == 303
     assert client.get("/dashboard", follow_redirects=False).headers["location"] == "/terms/accept"   # consent is the customer's own
 
@@ -941,14 +945,14 @@ def test_privileged_customer_pays_own_rate(client):
     with db() as c:
         c.execute("UPDATE users SET is_master=1 WHERE email='adm@example.com'")
     page = client.get("/admin/users")
-    base = {"name": "Priv One", "email": "p1@example.com", "mobile": "9866666666", "role": "agent", "credit": "100", "privileged": "1", "password": "Welcome-pass-2024", "csrf": csrf_from(page.text)}
+    base = {"name": "Priv One", "email": "p1@example.com", "mobile": "9866666666", "role": "agent", "credit": "100", "privileged": "1", "password": "Welcome-pass-24", "csrf": csrf_from(page.text)}
     assert client.post("/admin/users", data={**base, "rate": "500"}).status_code == 422       # above the standard price
     assert client.post("/admin/users", data=base).status_code == 201                          # blank rate -> default Rs 25
     with db() as c:
         u = c.execute("SELECT privileged, price_paise, balance_paise FROM users WHERE email='p1@example.com'").fetchone()
     assert (u["privileged"], u["price_paise"], u["balance_paise"]) == (1, 2500, 10000)
     client.cookies.clear()
-    assert otp_login(client, email="p1@example.com", password="Welcome-pass-2024").status_code == 303
+    assert otp_login(client, email="p1@example.com", password="Welcome-pass-24").status_code == 303
     pg = client.get("/terms/accept")
     client.post("/terms/accept", data={"csrf": csrf_from(pg.text), "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"})
     r = client.get("/wallet", follow_redirects=True)
@@ -1161,7 +1165,7 @@ def test_sql_injection_attempts_change_nothing(client):
     tok = csrf_from(client.get("/dashboard").text)
     for bad in SQLI:
         client.post("/login", data={"email": bad, "csrf": csrf_from(client.get("/login").text)})
-        client.post("/signup", data={"name": bad, "email": bad, "mobile": bad, "role": bad, "org": bad, "csrf": csrf_from(client.get("/signup").text)})
+        client.post("/signup", data={"first_name": bad, "last_name": bad, "email": bad, "mobile": bad, "role": bad, "org": bad, "csrf": csrf_from(client.get("/signup").text)})
         client.post("/reports", data={"password": bad, "applicant_ref": bad, "csrf": tok, "borrower_consent": "1"}, files={"file": (bad + ".pdf", GOOD, "application/pdf")}, follow_redirects=False)
         client.post("/wallet/topup", data={"pack": bad, "coupon": bad, "csrf": csrf_from(client.get("/wallet").text)})
         for path in (f"/reports/{bad}", f"/reports/{bad}/download", f"/pay/{bad}", f"/wallet/coupon?code={bad}&amount={bad}", f"/dashboard?q={bad}"):
@@ -1292,7 +1296,7 @@ def test_logo_and_favicons_are_served_and_linked(client):
 # ----------------------------------------------------------------------------- phone numbers: digits only, with a country code
 def _signup_data(client, **over):
     r = client.get("/signup")
-    data = {"name": "A", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "dsa", "password": "correct-horse-battery", "confirm": "correct-horse-battery", "csrf": csrf_from(r.text),
+    data = {"first_name": "Asha", "last_name": "Rao", "ft": __import__("app.security", fromlist=["x"]).make_form_token(int(__import__("time").time()) - 60), "website": "", "email": "a@b.co", "mobile": "9812345678", "country": "+91", "role": "dsa", "password": "Horse-battery-42", "confirm": "Horse-battery-42", "csrf": csrf_from(r.text),
             "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
     data.update(over)
     return data
@@ -1324,7 +1328,8 @@ def test_parse_phone_rejects(country, raw):
 
 
 def test_signup_stores_country_code_and_number_without_spaces(client):
-    r = client.post("/signup", data=_signup_data(client, mobile="50 123 4567", country="+971"), follow_redirects=False)
+    assert client.post("/signup", data=_signup_data(client, mobile="50 123 4567", country="+971")).status_code == 422     # spaces are refused, not tidied
+    r = client.post("/signup", data=_signup_data(client, mobile="501234567", country="+971"), follow_redirects=False)
     assert r.status_code == 303
     from app.db import db
     with db() as c:
@@ -1344,7 +1349,7 @@ def test_same_number_is_allowed_in_different_countries_but_not_twice(client):
         c.execute("INSERT INTO users(email,password_hash,name,role,mobile,country_code) VALUES ('x@y.co','h','X','dsa','9876501234','+971')")
     assert client.post("/signup", data=_signup_data(client, mobile="9876501234", country="+91"), follow_redirects=False).status_code == 303          # same digits, different country
     client.cookies.clear()
-    assert client.post("/signup", data=_signup_data(client, email="n@y.co", mobile="987 650 1234", country="+971"), follow_redirects=False).status_code == 409   # same country and number
+    assert client.post("/signup", data=_signup_data(client, email="n@y.co", mobile="9876501234", country="+971"), follow_redirects=False).status_code == 409   # same country and number
 
 
 def test_existing_accounts_get_the_indian_code_on_upgrade(tmp_path, monkeypatch):
@@ -1404,3 +1409,82 @@ def test_upload_form_shows_with_zero_balance_and_sends_to_wallet(user):
     assert r.status_code == 303 and r.headers["location"] == "/wallet?m=need_balance"
     add_money(user, 1000)
     assert 'data-low="1"' not in user.get("/dashboard").text
+
+
+# ----------------------------------------------------------------------------- sign-up validation and bot protection
+def _post(client, **over):
+    return client.post("/signup", data=_signup_data(client, **over), follow_redirects=False)
+
+
+@pytest.mark.parametrize("field,value", [("first_name", "A" * 26), ("first_name", "Asha1"), ("first_name", "As ha"), ("first_name", "Asha-Rao"), ("first_name", "O'Neil"),
+                                         ("first_name", "<b>"), ("first_name", ""), ("last_name", "Rao2"), ("last_name", "R" * 26), ("last_name", "Rao!"), ("last_name", "  ")])
+def test_names_are_letters_only_and_at_most_25(client, field, value):
+    assert _post(client, **{field: value}).status_code == 422
+
+
+def test_names_accept_25_letters_and_non_english_letters(client):
+    assert _post(client, first_name="A" * 25, last_name="Müller", email="ok1@example.com", mobile="9812345601").status_code == 303
+
+
+def test_company_is_limited_to_80_characters(client):
+    assert _post(client, org="C" * 81).status_code == 422
+    assert _post(client, org="Bad <script>").status_code == 422
+    assert _post(client, org="C" * 80, email="ok2@example.com", mobile="9812345602").status_code == 303
+
+
+@pytest.mark.parametrize("bad", ["", "plain", "a@b", "a@@b.co", "@b.co", "a@.co", "a@b..co", "a@b.c", "a@b.c0m", "a b@c.co", ".a@b.co", "a.@b.co", "a..b@c.co",
+                                 "a@-b.co", "a@b-.co", "a@b.co.", "a@[127.0.0.1]", "a<b>@c.co", "a'b@c.co", "a;drop@c.co", "tést@c.co", "a@" + "b" * 64 + ".co",
+                                 "a" * 65 + "@c.co", "a@" + ("b" * 60 + ".") * 5 + "co"])
+def test_email_rules_reject_bad_addresses(client, bad):
+    assert _post(client, email=bad).status_code == 422, bad
+
+
+def test_email_rules_accept_normal_addresses(client):
+    for i, good in enumerate(["first.last@example.com", "a+tag@sub.example.co.in", "USER_1@Example.COM"]):
+        assert _post(client, email=good, mobile=f"98123456{10 + i}").status_code == 303
+        client.cookies.clear()
+
+
+@pytest.mark.parametrize("pw,ok", [("Abcdefg1", True), ("Abcdefg1Abcdefg1", True), ("Abcdef1", False), ("Abcdefg1Abcdefg12", False)])
+def test_password_length_is_8_to_16(client, pw, ok):
+    assert (_post(client, password=pw, confirm=pw, email="pw@example.com").status_code == 303) is ok
+
+
+@pytest.mark.parametrize("bad", ["98123 45678", "98123-45678", "+919812345678", "98123abc45", "9812345678;", "९८१२३४५६७८"])
+def test_mobile_must_be_digits_only(client, bad):
+    assert _post(client, mobile=bad).status_code == 422
+
+
+def test_bots_are_blocked(client):
+    import time
+    from app import security
+    from app.db import db
+    assert _post(client, website="http://spam.example").status_code == 400                       # filled the hidden field
+    assert _post(client, ft="").status_code == 400                                              # no form token
+    assert _post(client, ft="forged").status_code == 400
+    assert _post(client, ft=security.make_form_token(int(time.time()))).status_code == 400      # submitted instantly
+    assert _post(client, ft=security.make_form_token(int(time.time()) - 3 * 3600)).status_code == 400   # stale
+    assert _post(client, csrf="x").status_code == 400
+    with db() as c:
+        assert c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0
+        assert c.execute("SELECT COUNT(*) FROM audit_log WHERE event='signup_bot_blocked'").fetchone()[0] >= 3
+    assert 'name="website"' in client.get("/signup").text and 'name="ft"' in client.get("/signup").text
+
+
+def test_signup_rejects_control_characters_oversize_and_floods(client):
+    assert _post(client, org="Acme\x00Corp").status_code == 400
+    assert _post(client, email="a@b.co\r\nBcc: x@y.co").status_code in (400, 422)
+    big = client.post("/signup", data=_signup_data(client, org="x" * 30000), follow_redirects=False)
+    assert big.status_code == 413
+    from app import security
+    security.signup_throttle.hits.clear()
+    codes = [_post(client, email=f"flood{i}@example.com", mobile=f"98000{i:05d}").status_code for i in range(15)]
+    assert 429 in codes
+
+
+def test_signup_stores_first_and_last_name(client):
+    assert _post(client).status_code == 303
+    from app.db import db
+    with db() as c:
+        u = c.execute("SELECT name, first_name, last_name FROM users").fetchone()
+    assert (u["name"], u["first_name"], u["last_name"]) == ("Asha Rao", "Asha", "Rao")

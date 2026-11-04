@@ -132,6 +132,24 @@ def make_csrf(scope: str) -> str:
     return _csrf_ser.dumps({"s": str(scope)})
 
 
+def make_form_token(t: int | None = None) -> str:
+    """Stamped when the sign-up page is drawn. A person needs a few seconds to fill the form; a script posting it straight away does not."""
+    import time
+    return _csrf_ser.dumps({"s": "form", "t": int(time.time() if t is None else t)})
+
+
+def form_token_ok(token: str | None, min_seconds: int = 4, max_seconds: int = 2 * 3600) -> bool:
+    import time
+    if not token:
+        return False
+    try:
+        data = _csrf_ser.loads(token, max_age=max_seconds)
+    except (BadSignature, SignatureExpired):
+        return False
+    age = int(time.time()) - int(data.get("t", 0))
+    return data.get("s") == "form" and min_seconds <= age <= max_seconds
+
+
 def check_csrf(token: str | None, scope: str) -> bool:
     if not token:
         return False
@@ -178,8 +196,8 @@ def password_problem(pw: str, email: str = "", name: str = "") -> str | None:
     """A message for a password we will not accept, or None. Length matters most; the rest only stops the obvious choices."""
     if len(pw) < 8:
         return "Use at least 8 characters for your password."
-    if len(pw) > 128:
-        return "That password is too long. Use 128 characters or fewer."
+    if len(pw) > 16:
+        return "Your password can have at most 16 characters."
     low = pw.lower()
     if low in _COMMON_PASSWORDS or len(set(low)) < 4:
         return "That password is too easy to guess. Choose something less common."

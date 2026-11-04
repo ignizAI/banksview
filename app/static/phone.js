@@ -8,3 +8,10 @@
   clean(el);
  });
 })();
+/* Name fields: letters only. */
+(function(){
+ document.querySelectorAll('input[data-letters]').forEach(function(el){
+  function clean(){var v=el.value,w=v.replace(/[^\p{L}]/gu,'');if(w!==v)el.value=w}
+  el.addEventListener('input',clean);el.addEventListener('paste',function(){setTimeout(clean,0)});clean();
+ });
+})();

@@ -30,7 +30,7 @@
     {% if c.is_admin or c.is_master %}<p class="muted">Admin and test passwords are changed on the server.</p>{% else %}
     <form method="post" action="/admin/customers/{{ c.id }}/password" autocomplete="off" onsubmit="this.querySelector('button').disabled=true">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <div class="field"><label for="np">New password</label><input id="np" name="password" type="text" required minlength="8" maxlength="128" autocomplete="off"><small>At least 8 characters. Tell the customer privately.</small></div>
+      <div class="field"><label for="np">New password</label><input id="np" name="password" type="text" required minlength="8" maxlength="16" autocomplete="off"><small>8 to 16 characters. Tell the customer privately.</small></div>
       <button class="btn">Set password</button>
     </form>{% endif %}</section>
   <section class="card danger"><h2>Delete customer</h2>

@@ -267,7 +267,7 @@ def test_cli_admin_command(client, capsys):
 # ----------------------------------------------------------------------------- customer actions: add, credit, delete
 def _new(client, **kw):
     page = client.get("/admin/customers/new")
-    data = {"name": "Meera Shah", "email": "meera@example.com", "mobile": "9876543210", "role": "lender", "org": "Shah Finance", "credit": "", "password": "Welcome-pass-2024", "csrf": csrf_from(page.text)}
+    data = {"name": "Meera Shah", "email": "meera@example.com", "mobile": "9876543210", "role": "lender", "org": "Shah Finance", "credit": "", "password": "Welcome-pass-24", "csrf": csrf_from(page.text)}
     data.update(kw)
     return client.post("/admin/customers/new", data=data, follow_redirects=False)
 

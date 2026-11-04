@@ -5,17 +5,23 @@
   {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
   <form method="post" action="/signup">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <div class="field"><label>Your name</label><input type="text" name="name" value="{{ form.get('name','') }}" required maxlength="80" autocomplete="name"></div>
+    <input type="hidden" name="ft" value="{{ ft }}">
+    <div class="trap" aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden"><label>Leave this empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="grid g2">
+      <div class="field"><label for="fn">First name</label><input id="fn" type="text" name="first_name" value="{{ form.get('first_name','') }}" required maxlength="25" pattern="[A-Za-z\u00C0-\u024F\u0900-\u097F]+" title="Letters only, up to 25" autocomplete="given-name" data-letters></div>
+      <div class="field"><label for="ln">Last name</label><input id="ln" type="text" name="last_name" value="{{ form.get('last_name','') }}" required maxlength="25" pattern="[A-Za-z\u00C0-\u024F\u0900-\u097F]+" title="Letters only, up to 25" autocomplete="family-name" data-letters></div>
+    </div>
+    <div class="hint" style="margin:-6px 0 12px">Letters only, up to 25 each. No numbers, spaces or special characters.</div>
     <div class="field"><label>I am a</label><select name="role" required><option value="">Choose</option>
       {% for k,v in roles.items() %}<option value="{{k}}" {{ 'selected' if form.get('role')==k }}>{{v}}</option>{% endfor %}</select></div>
-    <div class="field"><label>Company / firm (optional)</label><input type="text" name="org" value="{{ form.get('org','') }}" maxlength="100" autocomplete="organization"></div>
+    <div class="field"><label>Company / firm (optional)</label><input type="text" name="org" value="{{ form.get('org','') }}" maxlength="80" autocomplete="organization"></div>
       <div class="field"><label for="mob">Mobile number</label>
         <div class="phone"><select name="country" aria-label="Country code" autocomplete="tel-country-code">{% for code, cname in COUNTRIES %}<option value="{{ code }}" {{ 'selected' if form.get('country', '+91') == code }}>{{ code }} {{ cname }}</option>{% endfor %}</select>
         <input id="mob" type="tel" name="mobile" value="{{ form.get('mobile','') }}" inputmode="numeric" pattern="[0-9]*" maxlength="14" placeholder="9876543210" required autocomplete="tel-national" data-digits></div>
         <div class="hint">Digits only, no spaces. Choose the country code, then type the number without it.</div></div>
-      <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required autocomplete="email"><div class="hint">This is your username to sign in.</div></div>
-      <div class="field"><label for="pw">Password</label><input id="pw" type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password"><div class="hint">At least 8 characters. Do not reuse a password from another site.</div></div>
-      <div class="field"><label for="pw2">Repeat password</label><input id="pw2" type="password" name="confirm" required minlength="8" maxlength="128" autocomplete="new-password"></div>
+      <div class="field"><label>Email</label><input type="email" name="email" value="{{ form.get('email','') }}" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false"><div class="hint">This is your username to sign in.</div></div>
+      <div class="field"><label for="pw">Password</label><input id="pw" type="password" name="password" required minlength="8" maxlength="16" autocomplete="new-password"><div class="hint">8 to 16 characters. Do not reuse a password from another site.</div></div>
+      <div class="field"><label for="pw2">Repeat password</label><input id="pw2" type="password" name="confirm" required minlength="8" maxlength="16" autocomplete="new-password"></div>
     <fieldset class="consent">
       <legend>Required to create an account</legend>
       <label><input type="checkbox" name="agree_terms" value="1" required> I have read and accept the <a href="/terms" target="_blank" rel="noopener">Terms of Use</a>. I understand that {{ BRAND }} is a software platform, that wallet money is not refundable, and that I am responsible for how I use the reports.</label>
