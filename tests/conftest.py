@@ -31,14 +31,18 @@ def csrf_from(html: str) -> str:
     return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
 
 
-PASSWORD = "correct-horse-battery"
+PASSWORD = "Horse-battery-42"
 
 
 def signup_otp(client, mobile="9876543210", email="asha@example.com", name="Asha Rao", role="dsa", org="Rao Finserve", **over):
     """Password sign-up (name kept for the many callers). Returns the POST /signup response."""
+    import time
+    from app import security
     r = client.get("/signup")
-    data = {"name": name, "email": email, "role": role, "org": org, "mobile": mobile, "country": "+91", "password": PASSWORD, "confirm": PASSWORD,
-            "csrf": csrf_from(r.text), "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
+    parts = name.split()
+    data = {"first_name": parts[0], "last_name": "".join(parts[1:]) or "Test", "email": email, "role": role, "org": org, "mobile": mobile, "country": "+91",
+            "password": PASSWORD, "confirm": PASSWORD, "csrf": csrf_from(r.text), "ft": security.make_form_token(int(time.time()) - 60), "website": "",
+            "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
     data.update({k: v for k, v in over.items() if v is not None})
     for k, v in over.items():
         if v is None:

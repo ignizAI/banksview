@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import banks, config, coupons, excel_report, ingest, metrics, payments, phone, security, wallet
+from . import validate, banks, config, coupons, excel_report, ingest, metrics, payments, phone, security, wallet
 from .db import db, init_db, tx
 
 APP_DIR = Path(__file__).resolve().parent
@@ -245,39 +245,54 @@ def landing(request: Request):
 def signup_page(request: Request):
     if current_user(request):
         return redirect("/dashboard")
-    return render(request, "signup.html", roles=ROLES, form={}, error=None)
+    return render(request, "signup.html", roles=ROLES, form={}, error=None, ft=security.make_form_token())
 
 
 @app.post("/signup", response_class=HTMLResponse)
-def signup(request: Request, name: str = Form(""), email: str = Form(""), org: str = Form(""), role: str = Form(""), mobile: str = Form(""),
-           country: str = Form("+91"), password: str = Form(""), confirm: str = Form(""), csrf: str = Form(""), agree_terms: str = Form(""),
-           agree_privacy: str = Form(""), agree_borrower: str = Form("")):
+def signup(request: Request, first_name: str = Form(""), last_name: str = Form(""), email: str = Form(""), org: str = Form(""), role: str = Form(""),
+           mobile: str = Form(""), country: str = Form("+91"), password: str = Form(""), confirm: str = Form(""), csrf: str = Form(""),
+           agree_terms: str = Form(""), agree_privacy: str = Form(""), agree_borrower: str = Form(""), website: str = Form(""), ft: str = Form("")):
     """Create the account with the password the person chose and sign them in. There is no emailed code."""
-    form = {"name": name, "email": email, "org": org, "role": role, "mobile": re.sub(r"[^\d+]", "", mobile or ""), "country": country}
+    form = {"first_name": first_name[:60], "last_name": last_name[:60], "email": email[:300], "org": org[:200], "role": role[:20],
+            "mobile": re.sub(r"\D", "", mobile or "")[:20], "country": country[:6]}
 
     def fail(msg, code=422):
-        return render(request, "signup.html", status=code, roles=ROLES, form=form, error=msg)
+        return render(request, "signup.html", status=code, roles=ROLES, form=form, error=msg, ft=security.make_form_token())
 
     if not config.ALLOW_SIGNUP:
         return fail("Sign-ups are closed right now.", 403)
-    if not security.check_csrf(csrf, "anon"):
-        return fail("Your session expired. Please try again.", 400)
+    try:
+        if int(request.headers.get("content-length") or 0) > 20_000:      # a sign-up form is a few hundred bytes
+            return fail("That request is too large.", 413)
+    except ValueError:
+        return fail("That request is not valid.", 400)
     if not security.signup_throttle.allow(ip_of(request)):
         return fail("Too many sign-ups from this network. Try again later.", 429)
-    email = email.strip().lower()
-    name, org = name.strip(), org.strip()
-    phone_error = None
+    if not security.check_csrf(csrf, "anon"):
+        return fail("Your session expired. Please try again.", 400)
+    # bots: a hidden field no person sees, and a form that was filled in faster than a person can type
+    if website.strip() or not security.form_token_ok(ft):
+        audit(request, None, "signup_bot_blocked", None)
+        return fail("We could not confirm you are a person. Please wait a few seconds after filling the form and try again.", 400)
+    if any(validate.has_control(v) for v in (first_name, last_name, email, org, role, mobile, country, password, confirm)):
+        return fail("The form contains characters that are not allowed.", 400)
+    first, e1 = validate.person_name("first name", first_name)
+    last, e2 = validate.person_name("last name", last_name)
+    if e1 or e2:
+        return fail(e1 or e2)
+    name = f"{first} {last}"
+    org, e3 = validate.company(org)
+    if e3:
+        return fail(e3)
+    email, e4 = validate.email(email)
+    if e4:
+        return fail(e4)
+    if not re.fullmatch(r"[0-9]+", mobile or ""):
+        return fail("The mobile number can contain digits only: no spaces, letters or symbols.")
     try:
         cc, num = phone.parse_phone(country, mobile)
     except phone.PhoneError as e:
-        cc = num = None
-        phone_error = str(e)
-    if not name:
-        return fail("Please enter your name.")
-    if not EMAIL_RX.match(email):
-        return fail("Please enter a valid email address.")
-    if not num:
-        return fail(phone_error)
+        return fail(str(e))
     if role not in ROLES:
         return fail("Please choose whether you are a lender, agent or DSA.")
     if password != confirm:
@@ -293,8 +308,8 @@ def signup(request: Request, name: str = Form(""), email: str = Form(""), org: s
         return fail("An account with this email or mobile number already exists. Sign in instead.", 409)
     try:
         with tx() as conn:
-            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,1,0)",
-                               (email, security.hash_password(password), name, org or None, role, num, cc))
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, first_name, last_name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,?,?,1,0)",
+                               (email, security.hash_password(password), name, first, last, org or None, role, num, cc))
             uid = cur.lastrowid
             record_consents(conn, uid, request)
     except Exception as e:
