@@ -117,6 +117,7 @@ templates.env.globals.update(BRAND=config.BRAND, BRAND_HEAD=_head, BRAND_TAIL=_t
                              BANKS=banks.SUPPORTED_BANKS, BANK_COUNT=banks.BANK_COUNT, COMPANY_NAME=config.COMPANY_NAME, COMPANY_ADDRESS=config.COMPANY_ADDRESS,
                              GRIEVANCE_EMAIL=config.GRIEVANCE_EMAIL, GRIEVANCE_OFFICER=config.GRIEVANCE_OFFICER, TERMS_VERSION=config.TERMS_VERSION,
                              CAP_MONTHS=config.LIABILITY_CAP_MONTHS, JURISDICTION=config.JURISDICTION_CITY, MFA_REQUIRED=config.MFA_REQUIRED, COUPON_PERCENT=config.COUPON_PERCENT, COUPONS_ENABLED=config.COUPONS_ENABLED, COUNTRIES=phone.COUNTRIES)
+templates.env.globals.update(PACKS=config.PACKS, PRICE_PAISE=config.PRICE_PAISE, MAX_PAGES=config.MAX_PDF_PAGES)
 
 FLASH = {
     "upi_review": ("ok", "Thanks. We received your reference number and will credit your wallet once the payment is confirmed in our bank account."),

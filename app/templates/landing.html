@@ -80,26 +80,26 @@
   </div>
 
   <div class="y-panel on" id="p1"><div class="y-pcopy"><span class="y-tag">Document intelligence</span><h3>Know it is a real, readable statement before you pay.</h3>
-    <p>Scans, invoices, card statements, wrong passwords and broken files are caught first. A rejected file is never charged.</p>
+    <p>Scans, invoices, card statements, wrong passwords and broken files are caught first. Statements up to {{ MAX_PAGES }} pages are read, and one the bank has cut short is flagged as incomplete. A rejected file is never charged.</p>
     <div class="y-3"><div><b>13</b><span>validation checks</span></div><div><b>₹0</b><span>if it is rejected</span></div><div><b>{{ BANK_COUNT }}</b><span>banks recognised</span></div></div>
     <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a><a class="btn ghost" href="/banks">Supported banks</a></div></div>
     <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><ul class="y-ui-list"><li class="ok">Genuine account statement</li><li class="ok">Password accepted</li><li class="ok">Readable and complete</li><li class="ok">Running balances reconcile</li><li class="warn">2 returned items to review</li></ul></div></div>
 
   <div class="y-panel" id="p2"><div class="y-pcopy"><span class="y-tag">Financial analytics</span><h3>{{ METRIC_COUNT }} metrics, computed from every transaction.</h3>
-    <p>Monthly and total figures for income, obligations, balances and cash flow. Reversals are paired with the original debit and taken out of income.</p>
-    <div class="y-3"><div><b>{{ METRIC_COUNT }}</b><span>metrics</span></div><div><b>1</b><span>definition per metric</span></div><div><b>4</b><span>charts</span></div></div>
+    <p>Monthly and total figures for income, obligations, balances and cash flow, plus overdraft depth, salary regularity, UPI patterns and bounce reasons. Reversals are paired with the original debit and taken out of income.</p>
+    <div class="y-3"><div><b>{{ METRIC_COUNT }}</b><span>metrics</span></div><div><b>8</b><span>metric groups</span></div><div><b>4</b><span>charts</span></div></div>
     <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
     <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><div class="y-ui-tabs"><span class="on">Monthly</span><span>Totals</span><span>Cash flow</span></div>
       <table class="y-ui-t"><tr><td>Total credits</td><td>₹50,48,000</td></tr><tr><td>Average monthly credits</td><td>₹8,42,000</td></tr><tr><td>Average balance</td><td>₹3,10,420</td></tr><tr><td>Obligation ratio</td><td>31%</td></tr></table></div></div>
 
   <div class="y-panel" id="p3"><div class="y-pcopy"><span class="y-tag">Risk &amp; flags</span><h3>A Low, Medium or High score, with every flag explained.</h3>
-    <p>Bounces, cash-heavy activity, round-trip transfers and balance patterns are flagged for review. Integrity indicators are prompts to check the original, not a verdict.</p>
+    <p>Bounces, cash-heavy activity, round-trip transfers, balance patterns and incomplete statements are flagged for review. Integrity indicators are prompts to check the original, not a verdict.</p>
     <div class="y-3"><div><b>3</b><span>risk bands</span></div><div><b>Every</b><span>flag explained</span></div><div><b>0–100</b><span>score</span></div></div>
     <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
     <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><div class="y-score"><div class="y-ring"><b>18</b><small>Low</small></div><div><p><b>2</b> returned items</p><p><b>1</b> round-trip transfer</p><p><b>4</b> large cash credits</p></div></div></div></div>
 
   <div class="y-panel" id="p4"><div class="y-pcopy"><span class="y-tag">Counterparties</span><h3>See who pays, who gets paid and what repeats.</h3>
-    <p>Top payers and payees, recurring debits such as EMIs and rent, and transfers that go out and come back.</p>
+    <p>Top payers and payees, recurring debits such as EMIs and rent, and transfers that go out and come back. NACH and ECS debits count as EMIs; mutual-fund SIPs count as investments.</p>
     <div class="y-3"><div><b>Top 10</b><span>payers and payees</span></div><div><b>EMI</b><span>recurring debits</span></div><div><b>Loops</b><span>round-trip transfers</span></div></div>
     <div class="lp-cta" style="margin-top:20px"><a class="btn" href="/signup">Get started</a></div></div>
     <div class="y-ui" aria-hidden="true"><div class="y-ui-bar"><i></i><i></i><i></i></div><table class="y-ui-t"><tr><td>Customer A (payer)</td><td>₹12.4 L</td></tr><tr><td>Customer B (payer)</td><td>₹8.1 L</td></tr><tr><td>Supplier C (payee)</td><td>₹9.6 L</td></tr><tr><td>Loan EMI (recurring)</td><td>₹42,000 / mo</td></tr></table></div></div>
@@ -139,6 +139,15 @@
     <div class="y-stage"><em>03</em><span class="y-tag">Extract</span><h3>Read every row</h3><p>Dates, amounts and balances for each bank layout.</p><div class="y-pills"><span>{{ BANK_COUNT }} banks</span><span>Reconciled</span></div><strong>{{ BANK_COUNT }} banks<small>several layouts each</small></strong></div>
     <div class="y-stage"><em>04</em><span class="y-tag">Analyse</span><h3>Net, group, score</h3><p>Reversals paired, transactions categorised, flags raised.</p><div class="y-pills"><span>Bounces</span><span>Counterparties</span><span>Risk</span></div><strong>{{ METRIC_COUNT }} metrics<small>every one defined</small></strong></div>
     <div class="y-stage"><em>05</em><span class="y-tag">Deliver</span><h3>Report and dashboard</h3><p>Excel with eight sheets and an on-screen summary.</p><div class="y-pills"><span>Excel</span><span>Dashboard</span></div><strong>{{ RETAIN_DAYS }} days<small>then deleted</small></strong></div>
+  </div>
+  <div class="lp-walk" aria-label="Your first report">
+    <p class="lp-kicker">Your first report</p>
+    <ol>
+      <li><b>Create an account</b><span>Email and password, with the three consent ticks.</span></li>
+      <li><b>Add {{ MIN_TOPUP }}</b><span>The first-report pack, available once.</span></li>
+      <li><b>Upload the PDF</b><span>Add its password and confirm the account holder's consent.</span></li>
+      <li><b>Open the report</b><span>Dashboard on screen, Excel to download.</span></li>
+    </ol>
   </div>
 </section>
 
@@ -189,10 +198,13 @@
     <p class="lp-kicker">Pricing</p>
     <h2>Pay per report. No subscription.</h2>
     <ul>
-      <li>Prepaid packs: {{ MIN_TOPUP }} for your first report, then &#8377;250 for 5 reports, &#8377;1,000 for 20, &#8377;5,000 for 100. Wallet money is not refundable.</li>
+      <li>Prepaid packs, bought in advance. Wallet money is not refundable.</li>
       <li>Rejected files, wrong passwords and scans are never charged</li>
       <li>Same file again within {{ DUP_DAYS }} days opens the old report free</li>
     </ul>
+    <div class="lp-packs">
+      {% for p in PACKS %}<div><small>{{ p.name }}{% if p.first_only %} · once{% endif %}</small><b>&#8377;{{ '{:,}'.format(p.paise // 100) }}</b><span>{{ p.paise // PRICE_PAISE }} report{{ '' if p.paise // PRICE_PAISE == 1 else 's' }}</span></div>{% endfor %}
+    </div>
   </div>
   <div class="lp-price-card">
     <strong>{{ PRICE }}</strong>
@@ -209,6 +221,9 @@
     <details><summary>Can I get a refund on my wallet?</summary><p>No. Money added to the wallet is not refundable and cannot be withdrawn or transferred; it can only be used for reports. A report charged in error, or a payment that was debited but not credited, is corrected.</p></details>
     <details><summary>Do you store the PDF password?</summary><p>No. It is used once to open the file and is not saved.</p></details>
     <details><summary>Which banks are supported?</summary><p>{{ BANK_COUNT }} banks, listed on the <a href="/banks">supported banks</a> page. If a layout is not recognised you get a clear error and pay nothing.</p></details>
+    <details><summary>Are NACH debits counted as EMIs?</summary><p>Yes. NACH, ECS and lender debits are counted as EMIs. Mutual-fund, SIP, NPS and APY mandates collected through NACH are counted as investments instead, so they do not inflate the obligation ratio.</p></details>
+    <details><summary>What if the bank's statement is cut short?</summary><p>Some banks stop a download at a fixed number of entries. {{ BRAND }} detects this, raises an "incomplete" flag in the report and shows the period actually covered. Download the remaining months from the bank and upload them separately.</p></details>
+    <details><summary>How large a statement can I upload?</summary><p>Up to {{ MAX_MB }} MB and {{ MAX_PAGES }} pages. Long statements, including overdraft accounts with thousands of entries, can take a minute or more to analyse.</p></details>
     <details><summary>How long are reports kept?</summary><p>Excel files are kept for {{ RETAIN_DAYS }} days. Upload the statement again to regenerate one.</p></details>
     <details><summary>Does the account holder need to consent?</summary><p>Yes. You must have the account holder's consent before you upload their statement, and you confirm this at sign-up and with every upload. You are responsible for that consent and for how you use the report.</p></details>
     <details><summary>Is this a credit decision?</summary><p>No. {{ BRAND }} is a software platform. It reads the PDF you upload and computes figures from it. It does not verify the statement with the bank and does not take credit decisions. Check the report against the original statement before you rely on it.</p></details>
