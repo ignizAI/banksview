@@ -1,6 +1,6 @@
 # BanksView - bank statement analysis for DSAs and small NBFCs
 
-Upload a PDF bank statement (with its password) -> validated -> 141 metrics, flags and a downloadable Excel dashboard. Prepaid wallet: Rs 50 per report, bought in fixed packs (Rs 50 first report once, Rs 250 for 5, Rs 1,000 for 20, Rs 5,000 for 100).
+Upload a PDF bank statement (with its password) -> validated -> 208 metrics, flags and a downloadable Excel dashboard. Prepaid wallet: Rs 50 per report, bought in fixed packs (Rs 50 first report once, Rs 250 for 5, Rs 1,000 for 20, Rs 5,000 for 100).
 
 ## Run locally (Python 3.9 or newer; tested on 3.13)
     pip install -r requirements-dev.txt

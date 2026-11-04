@@ -8,6 +8,7 @@ Registry:  REGISTRY = [(key, group, label, unit, description, scope)]   scope 'w
 from __future__ import annotations
 
 import calendar
+import re
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta
@@ -161,6 +162,79 @@ reg("recon_break_pct", G7, "Balance mismatch rate", "%", "Mismatching rows as a 
 reg("doc_flag_count", G7, "PDF integrity flags", "count", "Signals from the PDF file itself (editing software, modified after creation).", "tot")
 reg("risk_score", G7, "Risk score (0-100)", "count", "Higher is riskier. Built from the flags on the Flags sheet.", "tot")
 
+# --- extended parameters (added after benchmarking against a lender analysis workbook)
+G8 = "Extended lending signals"
+reg("credit_upi_count", G1, "UPI credit count", "count", "Number of adjusted credits received through UPI.")
+reg("credit_imps_count", G1, "IMPS credit count", "count", "Number of adjusted credits received through IMPS.")
+reg("cash_deposit_pct", G1, "Cash deposits as % of credits", "%", "Cash deposited divided by adjusted credits.")
+reg("cheque_credit_pct", G1, "Cheque credits as % of credits", "%", "Cheque credits divided by adjusted credits.")
+reg("refund_credit_count", G1, "Refund credit count", "count", "Number of refund and cashback credits.")
+reg("reversal_credit_count", G1, "Reversal credit count", "count", "Number of credits that reverse an earlier debit.")
+reg("selfxfer_credit_count", G1, "Own-account transfers in (count)", "count", "Number of credits from the account holder's own accounts.")
+reg("loan_credit", G1, "Loan disbursements received", "INR", "Credits narrated as loan disbursals or loan account credits. Not income.")
+reg("loan_credit_count", G1, "Loan disbursement count", "count", "Number of loan disbursal credits.")
+reg("invest_credit", G1, "Investment credits", "INR", "Redemptions, dividends and maturity proceeds from investments.")
+reg("gambling_credit", G1, "Gaming / betting credits", "INR", "Credits from fantasy sports, betting and gaming platforms.")
+reg("salary_max", G1, "Largest salary credit", "INR", "Biggest single salary credit.")
+reg("credit_p25", G1, "Credit size, 25th percentile", "INR", "A quarter of adjusted credits are at or below this amount.")
+reg("credit_p75", G1, "Credit size, 75th percentile", "INR", "Three quarters of adjusted credits are at or below this amount.")
+reg("credit_p90", G1, "Credit size, 90th percentile", "INR", "Nine tenths of adjusted credits are at or below this amount.")
+reg("debit_upi_count", G2, "UPI debit count", "count", "Number of adjusted debits paid through UPI.")
+reg("debit_upi_first10", G2, "UPI spend, days 1 to 10", "INR", "UPI debits on days 1 to 10 of the month (early-month spending pressure).")
+reg("debit_upi_last10", G2, "UPI spend, days 21 to month end", "INR", "UPI debits on day 21 onwards.")
+reg("cash_withdrawal_pct", G2, "Cash withdrawals as % of debits", "%", "Cash withdrawn divided by adjusted debits.")
+reg("cash_withdrawal_max", G2, "Largest cash withdrawal", "INR", "Biggest single cash withdrawal.")
+reg("selfxfer_debit_count", G2, "Own-account transfers out (count)", "count", "Number of debits to the account holder's own accounts.")
+reg("interest_charged", G2, "Interest charged by bank", "INR", "Interest debited on overdraft, cash-credit or loan accounts.")
+reg("min_bal_charge_amount", G2, "Minimum balance charges", "INR", "Penalty for not maintaining the minimum average balance.")
+reg("min_bal_charge_count", G2, "Minimum balance charge count", "count", "Number of minimum balance penalties.")
+reg("penal_charge_amount", G2, "Penal / late-fee charges", "INR", "Late payment, penal interest and default charges.")
+reg("penal_charge_count", G2, "Penal charge count", "count", "Number of penal charge entries.")
+reg("gambling_debit", G2, "Gaming / betting spend", "INR", "Debits to fantasy sports, betting and gaming platforms.")
+reg("fuel_debit", G2, "Fuel spend", "INR", "Petrol and diesel purchases.")
+reg("medical_debit", G2, "Medical spend", "INR", "Hospitals, pharmacies and diagnostics.")
+reg("entertainment_debit", G2, "Entertainment spend", "INR", "Streaming, cinema, travel-booking and dining platforms.")
+reg("shopping_debit", G2, "Online shopping spend", "INR", "E-commerce and marketplace purchases.")
+reg("debit_p25", G2, "Debit size, 25th percentile", "INR", "A quarter of adjusted debits are at or below this amount.")
+reg("debit_p75", G2, "Debit size, 75th percentile", "INR", "Three quarters of adjusted debits are at or below this amount.")
+reg("debit_p90", G2, "Debit size, 90th percentile", "INR", "Nine tenths of adjusted debits are at or below this amount.")
+reg("bal_on_1", G3, "Balance on the 1st", "INR", "End-of-day balance on the 1st (average across months in the total column).")
+reg("bal_on_30", G3, "Balance on the 30th", "INR", "End-of-day balance on the 30th (average across months in the total column).")
+reg("bal_days_lt_500", G3, "Days below INR 500", "days", "Days on which the balance was almost nil.")
+reg("bal_max_days_lt_10k", G3, "Longest stretch below INR 10,000", "days", "Most consecutive days with a balance under INR 10,000.")
+reg("od_instances", G3, "Times the account went overdrawn", "count", "Number of times the balance moved from zero or positive to negative.")
+reg("od_max_depth", G3, "Deepest overdraft", "INR", "Largest negative end-of-day balance, shown as a positive amount.")
+reg("od_max_days", G3, "Longest overdrawn stretch", "days", "Most consecutive days with a negative balance.")
+reg("bounce_insuff_count", G6, "Bounces for insufficient funds", "count", "Rejected items where the reason is insufficient funds or drawer-related.")
+reg("bounce_other_count", G6, "Bounces for other reasons", "count", "Rejected items with a technical or other reason.")
+reg("emi_bounce_count", G6, "EMI / mandate bounces", "count", "Rejected NACH, ECS, ACH or EMI items.")
+reg("inward_return_charges", G6, "Inward return charges (count)", "count", "Charges for cheques deposited by the account holder that came back.")
+reg("outward_return_charges", G6, "Outward return charges (count)", "count", "Charges for cheques issued by the account holder that were dishonoured.")
+reg("cash_txn_pct", G6, "Cash share of transactions", "%", "Cash deposits and withdrawals as % of all entries.")
+reg("round_txn_pct", G6, "Round-figure transactions", "%", "Entries that are exact multiples of 1,000, as % of all entries.")
+# --- total-only extended
+reg("salary_months", G8, "Months with salary", "count", "Calendar months that contain a salary credit.", "tot")
+reg("salary_months_missing", G8, "Months without salary", "count", "Calendar months with no salary credit.", "tot")
+reg("salary_day_median", G8, "Typical salary day", "day", "Median day of month on which salary arrives.", "tot")
+reg("salary_day_spread", G8, "Salary date variance", "days", "Standard deviation of the salary credit day of month.", "tot")
+reg("salary_unchanged", G8, "Salary unchanged flag", "flag", "1 if every salary credit is the same amount.", "tot")
+reg("days_since_salary", G8, "Days since last salary", "days", "Statement end date minus last salary credit date.", "tot")
+reg("min_monthly_credit_count", G8, "Fewest credits in a month", "count", "Lowest number of adjusted credits among full months.", "tot")
+reg("has_min3_credits", G8, "Min 3 credits every month flag", "flag", "1 if every full month has at least 3 adjusted credits.", "tot")
+reg("months_lt5_txn", G8, "Months with fewer than 5 transactions", "count", "Calendar months with under 5 entries.", "tot")
+reg("months_no_credit", G8, "Months with no credit", "count", "Calendar months with no adjusted credit.", "tot")
+reg("missing_months", G8, "Missing months", "count", "Calendar months inside the period with no entries at all.", "tot")
+reg("txn_gap_max_days", G8, "Longest gap between entries", "days", "Longest run of days with no entry.", "tot")
+reg("has_negative_balance", G8, "Negative balance flag", "flag", "1 if the balance was ever below zero.", "tot")
+reg("equal_credit_debit", G8, "Credits equal to debits flag", "flag", "1 if credits and debits are within 2% of each other (pass-through behaviour).", "tot")
+reg("cash_dep_gt_salary", G8, "More cash deposited than salary flag", "flag", "1 if cash deposits exceed salary credits.", "tot")
+reg("abb_to_emi", G8, "Average balance to EMI", "ratio", "Average monthly balance divided by average monthly EMI.", "tot")
+reg("avg_credit_to_emi", G8, "Average monthly credit to EMI", "ratio", "Average monthly adjusted credits divided by average monthly EMI.", "tot")
+reg("gambling_pct_inflow", G8, "Gaming spend as % of inflow", "%", "Gaming and betting debits divided by net business inflow.", "tot")
+reg("loan_credit_pct", G8, "Loan credits as % of credits", "%", "Loan disbursals divided by adjusted credits.", "tot")
+
+_ORDER = [G1, G2, G3, G4, G5, G6, G7, G8]
+REGISTRY.sort(key=lambda r: _ORDER.index(r[1]))  # stable: keeps authoring order inside each group
 WIN_KEYS = [r[0] for r in REGISTRY if r[5] == "win"]
 ALL_KEYS = [r[0] for r in REGISTRY]
 
@@ -328,7 +402,96 @@ def calc_window(rows: list[dict], eod: dict, start: date, end: date, stmt_openin
     bnc = [r for r in w if r["bounce"] and r["dir"] == "D"]
     m["bounce_count"], m["bounce_amount"] = len(bnc), s(bnc)
     m["reversal_pairs"] = len({r["pair_id"] for r in w if r["pair_id"]})
+
+    _extend_window(m, w, cr, dr, acr, adr, eod, start, end, ndays)
     return m
+
+
+LOAN_CR_RX = re.compile(r"LOAN (DISB|A/?C|CREDIT)|DISBURS|LOAN AMOUNT|LOAN PROCEEDS|\bLN ?(DISB|A/?C)")
+INVEST_CR_RX = re.compile(r"REDEMPTION|MATURITY|DIVIDEND|MUTUAL FUND|\bFD (CLOSURE|MAT)|\bCAMS\b|\bKFIN|ZERODHA|GROWW|\bNSE\b|\bBSE\b")
+GAMBLE_RX = re.compile(r"DREAM ?11|RUMMY|BETWAY|\bMPL\b|WINZO|CASINO|LOTTERY|POKER|BET365|\bMY ?11|FANTASY|PARIMATCH|BETTING|LUDO ?(KING|SUPREME)")
+FUEL_RX = re.compile(r"PETROL|FUEL|\bHPCL|\bBPCL|\bIOCL|INDIAN ?OIL|SHELL|NAYARA|RELIANCE ?BP|FASTAG")
+MEDICAL_RX = re.compile(r"HOSPITAL|PHARMA|MEDICAL|MEDICINE|CLINIC|DIAGNOSTIC|APOLLO|1MG|NETMEDS|PRACTO|PATHLAB|\bLAB\b")
+ENTERTAIN_RX = re.compile(r"NETFLIX|HOTSTAR|PRIME VIDEO|SPOTIFY|BOOKMYSHOW|PVR|INOX|ZOMATO|SWIGGY|MAKEMYTRIP|IRCTC|YOUTUBE|SONYLIV")
+SHOP_RX = re.compile(r"AMAZON|FLIPKART|MYNTRA|AJIO|MEESHO|NYKAA|SNAPDEAL|BIGBASKET|BLINKIT|ZEPTO|INSTAMART")
+MINBAL_RX = re.compile(r"MIN(IMUM)? ?BAL|\bAMB\b|\bAQB\b|NON ?MAINT|AVG ?BAL ?CHG|AVERAGE ?(QUARTERLY|MONTHLY) ?BAL")
+PENAL_RX = re.compile(r"PENAL|LATE (PAYMENT|FEE)|LPF|DEFAULT CHG|OVERDUE CHG")
+EMI_BOUNCE_RX = re.compile(r"NACH|\bECS\b|\bACH\b|\bEMI\b|MANDATE|AUTO ?DEBIT")
+INSUFF_RX = re.compile(r"INSUFFICIENT|FUNDS|EXCEEDS ARRANGEMENT|DRAWER")
+
+
+def _pctile(xs, q):
+    if not xs:
+        return 0.0
+    ys = sorted(xs)
+    k = (len(ys) - 1) * q
+    lo, hi = int(k), min(int(k) + 1, len(ys) - 1)
+    return _r(ys[lo] + (ys[hi] - ys[lo]) * (k - lo))
+
+
+def _max_run(flags):
+    best = cur = 0
+    for f in flags:
+        cur = cur + 1 if f else 0
+        best = max(best, cur)
+    return best
+
+
+def _extend_window(m, w, cr, dr, acr, adr, eod, start, end, ndays):
+    """Extended lending signals. Narration-based ones read the text only; none of them changes how the
+    core credit / debit figures above are classified."""
+    ssum = lambda xs: _r(sum(r["amount"] for r in xs))
+    up = lambda r: r["narration"].upper()
+    m["credit_upi_count"] = sum(1 for r in acr if r["channel"] == "UPI")
+    m["credit_imps_count"] = sum(1 for r in acr if r["channel"] == "IMPS")
+    m["cash_deposit_pct"] = _pct(m["cash_deposit"], m["credit_adj"])
+    m["cheque_credit_pct"] = _pct(m["credit_ch_cheque"], m["credit_adj"])
+    m["refund_credit_count"] = sum(1 for r in acr if r["category"] == "REFUND")
+    m["reversal_credit_count"] = sum(1 for r in cr if r["reversal"])
+    m["selfxfer_credit_count"] = sum(1 for r in acr if r["category"] == "SELF_TRANSFER")
+    lc = [r for r in acr if LOAN_CR_RX.search(up(r))]
+    m["loan_credit"], m["loan_credit_count"] = ssum(lc), len(lc)
+    m["invest_credit"] = ssum([r for r in acr if INVEST_CR_RX.search(up(r)) and r["category"] not in ("SALARY", "INTEREST")])
+    m["gambling_credit"] = ssum([r for r in acr if GAMBLE_RX.search(up(r))])
+    m["salary_max"] = max([r["amount"] for r in acr if r["category"] == "SALARY"], default=0.0)
+    ca, da = [r["amount"] for r in acr], [r["amount"] for r in adr]
+    for q, n in ((0.25, "p25"), (0.75, "p75"), (0.90, "p90")):
+        m[f"credit_{n}"], m[f"debit_{n}"] = _pctile(ca, q), _pctile(da, q)
+    upi_d = [r for r in adr if r["channel"] == "UPI"]
+    m["debit_upi_count"] = len(upi_d)
+    m["debit_upi_first10"] = ssum([r for r in upi_d if r["date"].day <= 10])
+    m["debit_upi_last10"] = ssum([r for r in upi_d if r["date"].day >= 21])
+    m["cash_withdrawal_pct"] = _pct(m["cash_withdrawal"], m["debit_adj"])
+    m["cash_withdrawal_max"] = max([r["amount"] for r in adr if r["category"] == "CASH_WITHDRAWAL"], default=0.0)
+    m["selfxfer_debit_count"] = sum(1 for r in adr if r["category"] == "SELF_TRANSFER")
+    m["interest_charged"] = ssum([r for r in adr if cz.INTEREST_DR_RX.search(up(r))])
+    mb = [r for r in adr if r["category"] == "CHARGES" and MINBAL_RX.search(up(r))]
+    m["min_bal_charge_amount"], m["min_bal_charge_count"] = ssum(mb), len(mb)
+    pc = [r for r in adr if r["category"] in ("CHARGES", "BOUNCE_CHARGE") and PENAL_RX.search(up(r))]
+    m["penal_charge_amount"], m["penal_charge_count"] = ssum(pc), len(pc)
+    for key, rx in (("gambling_debit", GAMBLE_RX), ("fuel_debit", FUEL_RX), ("medical_debit", MEDICAL_RX),
+                    ("entertainment_debit", ENTERTAIN_RX), ("shopping_debit", SHOP_RX)):
+        m[key] = ssum([r for r in adr if rx.search(up(r)) and r["category"] not in ("CHARGES", "BOUNCE_CHARGE", "SELF_TRANSFER")])
+
+    days = list(_days(start, end))
+    vals = [eod[d] for d in days]
+    for dd in (1, 30):
+        v = [eod[d] for d in days if d.day == dd]
+        m[f"bal_on_{dd}"] = _r(sum(v) / len(v)) if v else None
+    m["bal_days_lt_500"] = sum(1 for b in vals if b < 500)
+    m["bal_max_days_lt_10k"] = _max_run(b < 10000 for b in vals)
+    m["od_instances"] = sum(1 for i, b in enumerate(vals) if b < 0 and (i == 0 or vals[i - 1] >= 0))
+    m["od_max_depth"] = _r(max(0.0, -min(vals)))
+    m["od_max_days"] = _max_run(b < 0 for b in vals)
+
+    bnc = [r for r in w if r["bounce"] and r["dir"] == "D"]
+    m["bounce_insuff_count"] = sum(1 for r in bnc if INSUFF_RX.search(up(r)))
+    m["bounce_other_count"] = len(bnc) - m["bounce_insuff_count"]
+    m["emi_bounce_count"] = sum(1 for r in bnc if EMI_BOUNCE_RX.search(up(r)))
+    m["inward_return_charges"] = sum(1 for r in w if r["category"] == "BOUNCE_CHARGE" and "INWARD" in up(r))
+    m["outward_return_charges"] = sum(1 for r in w if r["category"] == "BOUNCE_CHARGE" and "INWARD" not in up(r))
+    m["cash_txn_pct"] = _pct(sum(1 for r in w if r["category"] in ("CASH_DEPOSIT", "CASH_WITHDRAWAL")), len(w))
+    m["round_txn_pct"] = _pct(sum(1 for r in w if r["amount"] >= 1000 and r["amount"] % 1000 == 0), len(w))
 
 
 # ----------------------------------------------------------------------------- statement level
@@ -405,6 +568,8 @@ def analyze(parsed) -> dict:
     total["recon_break_pct"] = _pct(len(parsed.recon_breaks), parsed.recon_checked)
     total["doc_flag_count"] = len(parsed.doc_flags)
 
+    _extend_total(total, monthly, partial, rows, eod, first, last, full_keys, months_eq)
+
     flags = build_flags(total, monthly, partial, parsed, trips, recurring)
     score = min(100, sum(f["points"] for f in flags))
     total["risk_score"] = score
@@ -418,6 +583,38 @@ def analyze(parsed) -> dict:
         "parties_debit": party_table([r for r in rows if r["dir"] == "D" and not r["reversal"] and r["category"] not in ("CHARGES", "BOUNCE_CHARGE", "CASH_WITHDRAWAL", "SELF_TRANSFER")]),
         "categories": category_table(rows), "doc_flags": parsed.doc_flags,
     }
+
+
+def _extend_total(t, monthly, partial, rows, eod, first, last, full_keys, months_eq):
+    sal = [r for r in rows if r["dir"] == "C" and not r["reversal"] and r["category"] == "SALARY"]
+    smonths = {r["month"] for r in sal}
+    t["salary_months"] = len(smonths)
+    t["salary_months_missing"] = len(monthly) - len(smonths)
+    sdays = [r["date"].day for r in sal]
+    t["salary_day_median"] = _med(sdays) if sdays else 0
+    t["salary_day_spread"] = _sd(sdays) if len(sdays) > 1 else 0.0
+    t["salary_unchanged"] = 1 if sal and len({round(r["amount"], 2) for r in sal}) == 1 and len(sal) > 1 else 0
+    t["days_since_salary"] = (last - max(r["date"] for r in sal)).days if sal else None
+    cc = [monthly[k]["credit_adj_count"] for k in full_keys]
+    t["min_monthly_credit_count"] = min(cc) if cc else 0
+    t["has_min3_credits"] = 1 if cc and min(cc) >= 3 else 0
+    t["months_lt5_txn"] = sum(1 for m_ in monthly.values() if m_["txn_count"] < 5)
+    t["months_no_credit"] = sum(1 for m_ in monthly.values() if m_["credit_adj_count"] == 0)
+    t["missing_months"] = sum(1 for m_ in monthly.values() if m_["txn_count"] == 0)
+    dts = sorted({r["date"] for r in rows})
+    t["txn_gap_max_days"] = max(((b - a).days - 1 for a, b in zip(dts, dts[1:])), default=0)
+    t["has_negative_balance"] = 1 if t["bal_min"] < 0 else 0
+    t["equal_credit_debit"] = 1 if t["credit_adj"] and abs(t["credit_adj"] - t["debit_adj"]) / t["credit_adj"] <= 0.02 else 0
+    t["cash_dep_gt_salary"] = 1 if t["cash_deposit"] > t["salary_credit"] and t["cash_deposit"] > 0 else 0
+    emi_m = t["emi_debit"] / months_eq
+    t["abb_to_emi"] = round(t["abb_months_avg"] / emi_m, 2) if emi_m else None
+    t["avg_credit_to_emi"] = round(t["avg_monthly_credit"] / emi_m, 2) if emi_m else None
+    t["gambling_pct_inflow"] = _pct(t["gambling_debit"], t["inflow_genuine"])
+    t["loan_credit_pct"] = _pct(t["loan_credit"], t["credit_adj"])
+    # same-day balances for the total column are averages of the monthly values
+    for dd in (1, 30):
+        v = [m_[f"bal_on_{dd}"] for m_ in monthly.values() if m_[f"bal_on_{dd}"] is not None]
+        t[f"bal_on_{dd}"] = _r(sum(v) / len(v)) if v else None
 
 
 def party_table(rows, top=20):
@@ -463,6 +660,9 @@ def inr(x):
 
 def build_flags(t, monthly, partial, parsed, trips, recurring):
     f = []
+    note = parsed.meta.get("incomplete")
+    if note:
+        f.append(_flag("INCOMPLETE", "High", "Statement is incomplete", note, 10))
     if t["bounce_count"]:
         f.append(_flag("BOUNCE", "High", f"{t['bounce_count']} bounced cheque(s)/mandate(s)",
                        f"Rejected items worth {inr(t['bounce_amount'])} in {t['months_with_bounce']} month(s). Each was debited and then reversed with a reject reason; the reversal credits are excluded from income.",

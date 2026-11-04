@@ -249,6 +249,8 @@ def annotate(rows: list[dict], holder: str | None = None) -> list[dict]:
             r["self_xfer"] = True
         elif not cr and CARD_BILL_RX.search(u):
             cat = "CARD_BILL"
+        elif not cr and re.search(r"NACH-MUT|MUTUAL ?FUND|\bCAMS\b|\bSIP\b|HDFCMF|\bNPS\b|\bAPY\b|\bKFIN", u):
+            cat = "INVESTMENT"  # mandates for mutual funds / pension are savings, not loan EMIs
         elif not cr and EMI_RX.search(u):
             cat = "LOAN_EMI"
         elif not cr and INSURANCE_RX.search(u):

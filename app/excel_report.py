@@ -1,4 +1,4 @@
-"""Builds the downloadable Excel workbook: summary dashboard with charts, ~140 metrics by month and
+"""Builds the downloadable Excel workbook: summary dashboard with charts, 208 metrics by month and
 total, every transaction, daily balances, counterparties, flags and a data dictionary."""
 from __future__ import annotations
 

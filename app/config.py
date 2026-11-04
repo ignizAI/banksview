@@ -38,7 +38,7 @@ MAX_TOPUP_PAISE = _int("MAX_TOPUP_PAISE", 10000000)        # Rs 1,00,000 per top
 
 # --- Upload limits ---
 MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 15)
-MAX_PDF_PAGES = _int("MAX_PDF_PAGES", 150)
+MAX_PDF_PAGES = _int("MAX_PDF_PAGES", 300)
 KEEP_UPLOADED_PDF = os.environ.get("KEEP_UPLOADED_PDF", "0") == "1"   # default: delete after parsing
 DUPLICATE_WINDOW_DAYS = _int("DUPLICATE_WINDOW_DAYS", 30)
 REPORT_RETENTION_DAYS = _int("REPORT_RETENTION_DAYS", 90)

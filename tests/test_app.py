@@ -252,7 +252,32 @@ def test_at_least_100_data_points_per_column():
     a = metrics.analyze(ingest.ingest(GOOD, None))
     for k in metrics.WIN_KEYS:
         assert k in a["total"] and all(k in m for m in a["monthly"].values()), k
-    assert len(metrics.REGISTRY) >= 130
+    assert len(metrics.REGISTRY) >= 200
+    groups = [r[1] for r in metrics.REGISTRY]
+    assert all(groups.index(g) + groups.count(g) == len(groups) - groups[::-1].index(g) for g in set(groups)), "groups must be contiguous"
+
+
+def test_extended_lending_signals():
+    from app import ingest
+    a = metrics.analyze(ingest.ingest(GOOD, None))
+    t = a["total"]
+    assert t["has_negative_balance"] in (0, 1) and t["od_instances"] >= 0 and t["od_max_depth"] >= 0
+    assert t["credit_p25"] <= t["credit_p75"] <= t["credit_p90"] <= t["credit_max"]
+    assert t["debit_p25"] <= t["debit_p75"] <= t["debit_p90"] <= t["debit_max"]
+    assert t["bounce_insuff_count"] + t["bounce_other_count"] == t["bounce_count"]
+    assert t["salary_months"] + t["salary_months_missing"] == len(a["months"])
+    assert t["missing_months"] == 0 and t["txn_gap_max_days"] >= 0
+    assert t["has_min3_credits"] in (0, 1) and t["equal_credit_debit"] in (0, 1)
+    assert abs(sum(m["debit_upi_count"] for m in a["monthly"].values()) - t["debit_upi_count"]) < 1e-9
+    assert abs(sum(m["loan_credit"] for m in a["monthly"].values()) - t["loan_credit"]) < 0.01
+
+
+def test_extended_narration_signals_on_crafted_rows():
+    from app import metrics as M
+    assert M.GAMBLE_RX.search("UPI/DREAM11/BET") and M.FUEL_RX.search("POS HPCL PETROL PUMP")
+    assert M.MINBAL_RX.search("MIN BAL CHG") and M.PENAL_RX.search("LATE PAYMENT FEE")
+    assert M.LOAN_CR_RX.search("LOAN DISBURSEMENT TO A/C") and not M.LOAN_CR_RX.search("SALARY JAN")
+    assert M._pctile([1, 2, 3, 4, 5], 0.5) == 3 and M._max_run([1, 1, 0, 1, 1, 1]) == 3
 
 
 def test_totals_recomputed_not_summed():

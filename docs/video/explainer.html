@@ -84,7 +84,7 @@ function frame(now){const t=(now-t0)/1000;
  const L=t-T[k];
  if(k===1){$('pw').textContent='•'.repeat(Math.min(8,Math.max(0,Math.floor((L-1)*5))));$('cb').classList.toggle('on',L>3.6);$('cb').textContent=L>3.6?'✓':''}
  if(k===2){[...$('checks').children].forEach((c,i)=>c.classList.toggle('on',L>1+i*0.9))}
- if(k===3){const p=Math.min(1,Math.max(0,(L-.4)/4.2));$('cnt').textContent=Math.round(141*(1-Math.pow(1-p,3)));$('pbar').style.width=(p*100)+'%'}
+ if(k===3){const p=Math.min(1,Math.max(0,(L-.4)/4.2));$('cnt').textContent=Math.round(208*(1-Math.pow(1-p,3)));$('pbar').style.width=(p*100)+'%'}
  if(k===4){$('dash').classList.toggle('on',L>.5);[...$('bars').children].forEach((b,i)=>{b.style.height=(L>1+i*.15?b.dataset.h+'%':'6px')})}
  $('prog').style.width=(t/T[7]*100)+'%';
  window.__t=t;

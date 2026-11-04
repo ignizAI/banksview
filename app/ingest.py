@@ -127,7 +127,7 @@ def extract_lines(pdf_bytes: bytes) -> tuple[list[tuple[int, str]], int]:
             txt = page.extract_text(x_tolerance=1.5, y_tolerance=3) or ""
             chars += len(txt)
             for ln in txt.splitlines():
-                ln = re.sub(r"\s+", " ", ln).strip()
+                ln = re.sub(r"\s+", " ", re.sub(r"\(cid:\d+\)", " ", ln)).strip()
                 if ln:
                     lines.append((pno, ln))
     return lines, chars
@@ -137,6 +137,7 @@ def extract_lines(pdf_bytes: bytes) -> tuple[list[tuple[int, str]], int]:
 # Step 3: is it a bank statement?
 # ---------------------------------------------------------------------------------------
 BANKS = [
+    (r"kokan", "Kokan Mercantile Co-operative Bank"),
     (r"state bank of india|\bsbi\b", "State Bank of India"), (r"hdfc bank", "HDFC Bank"),
     (r"icici bank", "ICICI Bank"), (r"axis bank", "Axis Bank"),
     (r"kotak mahindra bank|kotak bank", "Kotak Mahindra Bank"), (r"bank of baroda", "Bank of Baroda"),
@@ -210,7 +211,7 @@ SKIP_LINE = re.compile(
     r"withdrawal|deposit|balance\b|opening\s+balance|closing\s+balance|total\b|grand\s+total|\*+|this\s+is\s+a\s+computer|"
     r"registered\s+office|generated\s+on|www\.|toll\s*free|customer\s+care|ifsc|micr|cust(omer)?\s*(id|name)|"
     r"account\s*(no|number|name|type|holder|branch)|a/c\s|nominee|joint\s+holder|currency|email|phone|mobile|"
-    r"unless\s+the\s+constituent|legends|abbreviations|end\s+of\s+statement|opening|closing|brought\s+forward|carried\s+forward)"
+    r"number\s+of\s+(credit|debit)|unless\s+the\s+constituent|legends|abbreviations|end\s+of\s+statement|opening|closing|brought\s+forward|carried\s+forward)"
 )
 
 
@@ -298,6 +299,119 @@ def _guess_dir(narr: str) -> str | None:
     return None
 
 
+def _centered_narrations(pdf_bytes: bytes, rows: list[dict], many_empty: bool = False) -> bool:
+    """Some banks (IDFC FIRST) print the particulars vertically centred on the row, so the first lines
+    sit ABOVE the line that carries the date and amounts. Re-read the page by position and give every
+    particulars line to the nearest dated row. Returns True if narrations were filled in."""
+    by_page: dict[int, list[dict]] = {}
+    for r in rows:
+        by_page.setdefault(r["page"], []).append(r)
+    filled = 0
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for pno, page in enumerate(pdf.pages, start=1):
+            prs = by_page.get(pno)
+            if not prs:
+                continue
+            words = page.extract_words(x_tolerance=1.5, y_tolerance=3)
+            head = {("cheque" if w["text"].lower().startswith("cheq") else w["text"].lower()): w for w in words
+                    if w["text"].lower() in ("particulars", "value") or w["text"].lower().startswith("cheq")}
+            if "particulars" not in head or "cheque" not in head:
+                continue
+            dated = [w for w in words if re.fullmatch(r"\d{2}[-/][A-Za-z0-9]{2,3}[-/]\d{2,4}", w["text"])]
+            if not dated:
+                continue
+            x_hi, y_hdr = head["cheque"]["x0"] - 6, head["particulars"]["bottom"]
+            dated = [w for w in dated if w["top"] > y_hdr and w["x0"] < head["particulars"]["x0"] - 20]
+            if not dated:
+                continue
+            x_lo = max(w["x1"] for w in dated if w["x0"] < head["cheque"]["x0"]) + 6
+            y_end = min([w["top"] for w in words if w["text"] in ("REGISTERED", "IMPORTANT", "Page", "limits")] or [1e9])
+            skip_tops = [w["top"] for w in words if w["text"] in ("Brought", "Carried", "Opening", "Closing")]
+            anchors = sorted(w["top"] for w in dated if w["x0"] < head["particulars"]["x0"] - 20
+                             and not any(abs(w["top"] - t) < 3 for t in skip_tops))
+            anchors = sorted(set(round(a) for a in anchors))
+            if len(anchors) != len(prs):
+                continue
+            above = [w for w in words if y_hdr < w["top"] < anchors[0] - 3 and x_lo <= w["x0"] < x_hi
+                     and w["text"] not in ("Opening", "Balance", "As", "On", "CR", "DR") and not re.fullmatch(r"[\d,/.:-]+", w["text"])]
+            if not (above or many_empty):
+                continue  # narration starts on the dated line (SBI, HDFC style): the line-based reader is right
+            texts: list[list[tuple[float, str]]] = [[] for _ in anchors]
+            for w in words:
+                if w["top"] <= y_hdr or w["top"] >= y_end or not (x_lo <= w["x0"] < x_hi):
+                    continue
+                if w["text"] in ("Opening", "Balance", "Closing", "As", "On", "CR", "DR") and w["top"] < anchors[0]:
+                    continue
+                if any(abs(w["top"] - t) < 3 for t in skip_tops):
+                    continue
+                if re.fullmatch(r"\d{2}[-/][A-Za-z0-9]{2,3}[-/]\d{2,4}", w["text"]) or re.fullmatch(r"[\d,]+\.\d{2}", w["text"]) and w["top"] < anchors[0]:
+                    continue
+                i = min(range(len(anchors)), key=lambda k: abs(anchors[k] - w["top"]))
+                if abs(anchors[i] - w["top"]) <= 36:
+                    texts[i].append((w["top"], w["x0"], w["text"]))
+            for r, t in zip(prs, texts):
+                narr = " ".join(x[2] for x in sorted(t, key=lambda z: (round(z[0]), z[1])))
+                if narr:
+                    r["narration"] = narr
+                    filled += 1
+    return filled > 0
+
+
+def _table_by_position(pdf_bytes: bytes) -> list[dict]:
+    """Fallback for statements drawn as a boxed table where date, description and amounts wrap over several
+    lines (ICICI current-account style: S.no | Transaction ID | Date | Cheque | Description | Withdrawal |
+    Deposit | Balance). Columns are located from the header words and each row is the band between two
+    serial numbers."""
+    out: list[dict] = []
+    geo: dict = {}
+    num = re.compile(r"^-?[\d,]+\.\d{2}$")
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for pno, page in enumerate(pdf.pages, start=1):
+            words = page.extract_words(x_tolerance=1.5, y_tolerance=3)
+            def find(t, near=None):
+                c = sorted([w for w in words if w["text"].lower().startswith(t) and (near is None or abs(w["top"] - near["top"]) < 25)],
+                           key=lambda w: (round(w["top"]), w["x0"]))
+                return c[0] if c else None
+            hs = find("s.no")
+            if hs:
+                hw, hd, hb, hdesc = find("withdrawal", hs), find("deposit", hs), find("available", hs), find("description", hs)
+                ht = sorted([w for w in words if w["text"] == "Transaction" and abs(w["top"] - hs["top"]) < 25], key=lambda w: w["x0"])
+                if hw and hd and hb and hdesc and len(ht) >= 2:
+                    ch = find("cheque", hs)
+                    geo = {"x_id": ht[0]["x0"] - 3, "x_date": ht[1]["x0"] - 3,
+                           "x_chq": (ch["x0"] - 3) if ch else hdesc["x0"] - 3, "x_desc": hdesc["x0"] - 3,
+                           "cols": {"W": (hw["x0"] + hw["x1"]) / 2, "D": (hd["x0"] + hd["x1"]) / 2, "B": (hb["x0"] + hb["x1"]) / 2}}
+                    y_hdr = max(w["bottom"] for w in (hs, hw, hd, hb, hdesc)) + 12
+            if not geo:
+                continue
+            if not hs:
+                y_hdr = 30  # continuation page: same columns, no header
+            x_id, x_date, x_chq, x_desc, cols = geo["x_id"], geo["x_date"], geo["x_chq"], geo["x_desc"], geo["cols"]
+            serial = sorted([w for w in words if w["top"] > y_hdr and w["x0"] < x_id and re.fullmatch(r"\d{1,6}", w["text"])],
+                            key=lambda w: w["top"])
+            y_end = min([w["top"] for w in words if w["text"] in ("REGISTERED", "Legends", "Page") and w["top"] > y_hdr] or [1e9])
+            for i, sw in enumerate(serial):
+                top = sw["top"] - 3
+                bot = (serial[i + 1]["top"] - 3) if i + 1 < len(serial) else min(y_end, page.height)
+                band = [w for w in words if top <= w["top"] < bot]
+                dtxt = "".join(w["text"] for w in sorted([w for w in band if x_date <= w["x0"] < x_chq], key=lambda w: (round(w["top"]), w["x0"])))
+                dp = parse_date_prefix(dtxt)
+                amts = {"W": None, "D": None, "B": None}
+                for w in band:
+                    if num.match(w["text"]) and w["x0"] > x_desc + 20:
+                        c = (w["x0"] + w["x1"]) / 2
+                        k = min(cols, key=lambda k: abs(cols[k] - c))
+                        amts[k] = float(w["text"].replace(",", ""))
+                narr = " ".join(w["text"] for w in sorted([w for w in band if x_desc <= w["x0"] < min(cols.values()) - 15 and not num.match(w["text"])],
+                                                           key=lambda w: (round(w["top"]), w["x0"])))
+                if not dp or amts["B"] is None or (amts["W"] is None and amts["D"] is None):
+                    continue
+                amt = amts["W"] if amts["W"] is not None else amts["D"]
+                out.append({"date": dp[0], "narration": narr.strip(), "amount": amt, "balance": amts["B"],
+                            "hint": "D" if amts["W"] is not None else "C", "page": pno})
+    return out
+
+
 def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
     lines, chars = extract_lines(pdf_bytes)
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -322,6 +436,11 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
     # the IFSC prefix is the most reliable bank signal; a bank name in a narration (e.g. "SBI" in a
     # transfer description) must not override it
     bank = IFSC_BANK.get(ifsc[:4]) if ifsc else None
+    head_bank = next((n for pat, n in BANKS if re.search(pat, "\n".join(l for _, l in lines[:6]).lower())), None)
+    # co-operative banks borrow a sponsor bank's IFSC prefix but have a non-numeric branch code
+    # (e.g. KKBK0KMCB02): the bank named at the top of the statement is the right one
+    if head_bank and ifsc and not ifsc[5:].isdigit() and head_bank != bank:
+        bank = head_bank
     if not bank:
         low_head = head.lower()
         bank = next((n for pat, n in BANKS if re.search(pat, low_head)), None) or sig["bank"]
@@ -329,7 +448,8 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
     m = ACCNO_RE.search(head) or ACCNO_RE.search(text)
     acc = m.group(1) if m else None
     meta["account_number"] = acc
-    meta["account_masked"] = ("XXXX" + re.sub(r"\D", "", acc)[-4:]) if acc and re.sub(r"\D", "", acc) else None
+    meta["account_masked"] = (("XXXX" + re.sub(r"\D", "", acc[-4:])) if re.search(r"[Xx*]", acc[-4:]) or re.search(r"[Xx*]", acc)
+                              else "XXXX" + re.sub(r"\D", "", acc)[-4:]) if acc and re.sub(r"\D", "", acc) else None
     m = re.search(r"(?i)(?:account\s*name|customer\s*name|a/c\s*holder(?:\s*name)?|account\s*holder(?:'s)?(?:\s*name)?|name)\s*[:\-]\s*([A-Za-z][A-Za-z .&'/-]{2,60})", head)
     meta["holder"] = re.sub(r"\s{2,}.*", "", m.group(1)).strip() if m else None
     if not meta["holder"]:
@@ -337,6 +457,26 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
         meta["holder"] = m.group(1).strip() if m else None
     if meta["holder"]:
         meta["holder"] = re.split(r"(?i)\s+(account|a/c|customer|ifsc|branch|address|cust)\b", meta["holder"])[0].strip()
+    if meta["holder"] and re.match(r"(?i)(account|type|number|no\b|branch)", meta["holder"]):
+        meta["holder"] = None
+    if not meta["holder"]:
+        hl = [l for _, l in lines[:40]]
+        for i, l_ in enumerate(hl[:-1]):
+            if re.match(r"(?i)^(customer\s*)?name\s*:?$", l_.strip()) or re.search(r"(?i)\bname\s*:\s*$", l_):
+                cand = hl[i + 1].strip()
+                if re.fullmatch(r"[A-Z][A-Z .&'/-]{4,60}", cand):
+                    meta["holder"] = cand
+                    break
+    if not meta["holder"]:
+        for _, l_ in lines[:6]:
+            mk = re.match(r"([A-Z][A-Za-z .'-]{3,50}?)\s+Account No\b", l_.strip())
+            if mk and not re.search(r"(?i)bank|statement", mk.group(1)):
+                meta["holder"] = mk.group(1).strip().upper()
+                break
+            mh = re.match(r"([A-Z][A-Z0-9 .&'/-]{4,50}?)(?=\s+(?:Generation|Period|Customer|Account|Statement|Date)\b|$)", l_.strip())
+            if mh and not re.search(r"BANK|STATEMENT|ACCOUNT|LIMITED|LTD", mh.group(1)):
+                meta["holder"] = mh.group(1).strip()
+                break
     atype = None
     m = re.search(r"(?i)account\s*type\s*:\s*([A-Za-z0-9 ()+/&-]{3,60})", head)
     if m:
@@ -354,7 +494,7 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
 
     # ---- opening balance from header text
     opening = None
-    m = re.search(r"(?i)(?:opening|brought\s+forward|b/f)\s*balance[^0-9\-]{0,25}(-?[\d,]+\.\d{2})\s*(Cr|Dr)?", text)
+    m = re.search(r"(?i)(?:opening|brought\s+forward|b/f)\s*balance(?:\s+as\s+(?:on|at)\s+\d{1,2}[/\-. ][A-Za-z0-9]{1,9}[/\-. ,]+\d{2,4})?[^0-9\-]{0,25}(-?[\d,]+\.\d{2})\s*(Cr|Dr)?", text)
     if m:
         v = float(m.group(1).replace(",", ""))
         opening = -v if (m.group(2) or "").lower() == "dr" else v
@@ -435,6 +575,11 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
                 rows[-1]["narration"] += " " + ln
                 cont_budget -= 1
 
+    if rows:
+        _centered_narrations(pdf_bytes, rows, many_empty=sum(1 for r in rows if len(r['narration']) < 4) > 0.3 * len(rows))
+
+    if len(rows) < config.MIN_TRANSACTIONS:
+        rows = _table_by_position(pdf_bytes)
     if len(rows) < config.MIN_TRANSACTIONS:
         if amount_only_rows >= config.MIN_TRANSACTIONS:
             raise err("UNSUPPORTED_LAYOUT")
@@ -496,6 +641,8 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
     # ---- statement period
     m = re.search(r"(?i)(?:from|period|between)[^0-9A-Za-z]{0,4}(\d{1,2}[/\-. ][A-Za-z0-9]{1,9}[/\-. ,]+\d{2,4})\s*(?:to|-|–|and)\s*(\d{1,2}[/\-. ][A-Za-z0-9]{1,9}[/\-. ,]+\d{2,4})", text)
     p_from = p_to = None
+    if not m:
+        m = re.search(r"(?im)^(\d{1,2} [A-Za-z]{3} \d{4})\s*[-–]\s*(\d{1,2} [A-Za-z]{3} \d{4})\s*$", "\n".join(l for _, l in lines[:8]))
     if m:
         a, b = parse_date_prefix(m.group(1)), parse_date_prefix(m.group(2))
         if a and b:
@@ -506,6 +653,10 @@ def parse_statement(pdf_bytes: bytes, info: dict) -> Parsed:
     if not p_to or p_to < last_d or (p_to - last_d).days > 62:
         p_to = last_d
     meta["period_from"], meta["period_to"] = p_from, p_to
+    mt = re.search(r"(?i)(?:exceeds|more than|over)\s+(\d{2,5})\s+(?:entries|transactions)", text)
+    if mt and (p_to - last_d).days >= 3:
+        meta["incomplete"] = (f"The bank stopped this statement at {mt.group(1)} entries. Transactions after {last_d:%d %b %Y} "
+                              f"(up to the stated period end {p_to:%d %b %Y}) are missing. Download the remaining part and upload it as well.")
 
     warnings = []
     opening_derived = opening is None

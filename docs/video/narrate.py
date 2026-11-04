@@ -14,7 +14,7 @@ LINES = [
     "Reading bank statements by hand is slow, and easy to get wrong.",
     "With BanksView, sign in with your email, upload the PDF, and add its password.",
     "Thirteen checks run first, so a bad file is caught before you pay anything.",
-    "Then every transaction is read and reconciled, and one hundred and forty one metrics are computed.",
+    "Then every transaction is read and reconciled, and two hundred and eight metrics are computed.",
     "You get a risk score, flags, a dashboard, and an Excel report with eight sheets.",
     "Fifty rupees per finished report. Nothing is charged if the upload fails.",
     "BanksView. Bank statement analysis for lending teams.",
