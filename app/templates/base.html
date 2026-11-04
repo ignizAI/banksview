@@ -2,12 +2,15 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}{{ BRAND }}{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v={{ ASSET_V }}"><link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ ASSET_V }}"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v={{ ASSET_V }}"><meta name="theme-color" content="#1C78FF">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/static/style.css?v={{ ASSET_V }}">
 </head><body class="{% block bodyclass %}{% endblock %}">
+<!-- decorative banking-icon watermark: filled in by the script below, only in free space, never over content or the footer -->
+<div class="wm" aria-hidden="true"><svg width="0" height="0" style="position:absolute"><defs><symbol id="wm-bank" viewBox="0 0 24 24"><path d="M3 9.5L12 4l9 5.5z"/><path d="M6 12v6M10 12v6M14 12v6M18 12v6"/><path d="M3.5 20.5h17"/></symbol><symbol id="wm-rupee" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 8h7M8.5 11h7M8.5 8h2.2a2.8 2.8 0 010 5.6H8.5l6 4.4"/></symbol><symbol id="wm-card" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="2.2"/><path d="M2.5 10h19M6 15h4"/></symbol><symbol id="wm-wallet" viewBox="0 0 24 24"><path d="M4 8V6.8A1.8 1.8 0 015.8 5H18v3"/><rect x="3" y="8" width="18" height="11.5" rx="2.2"/><path d="M16 13.7h2.4"/></symbol><symbol id="wm-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/><circle cx="12" cy="15.7" r="1.2"/></symbol><symbol id="wm-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M8 20v-5M12.5 20v-8M17 20v-11"/><path d="M6 10.5l4-3 3 2 5-5M15 4.5h3v3"/></symbol><symbol id="wm-statement" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 15h6M9 18h3.5"/></symbol><symbol id="wm-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.4 2.4 4.3-4.4"/></symbol><symbol id="wm-banknote" viewBox="0 0 24 24"><rect x="2.5" y="6.5" width="19" height="11" rx="1.8"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.6h.01M18 14.4h.01"/></symbol><symbol id="wm-coins" viewBox="0 0 24 24"><ellipse cx="12" cy="6.5" rx="7" ry="2.7"/><path d="M5 6.5v5c0 1.5 3.1 2.7 7 2.7s7-1.2 7-2.7v-5"/><path d="M5 11.5v5c0 1.5 3.1 2.7 7 2.7s7-1.2 7-2.7v-5"/></symbol><symbol id="wm-percent" viewBox="0 0 24 24"><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="M18 5.5L6 18.5"/></symbol><symbol id="wm-calc" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.2"/><rect x="8" y="6" width="8" height="3.5" rx=".8"/><path d="M8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01"/></symbol></defs></svg><div class="wm-box"></div></div>
 <header class="top"><div class="wrap">
-  <a class="brand" href="/">{{ BRAND_HEAD }}<span>{{ BRAND_TAIL }}</span></a>
+  <a class="brand" href="/" aria-label="{{ BRAND }} home"><img class="brand-mark" src="/static/logo-mark.svg?v={{ ASSET_V }}" alt="" width="30" height="30"><em>{{ BRAND_HEAD }}<span>{{ BRAND_TAIL }}</span></em></a>
   <nav>
   {% if user %}
     <a href="/dashboard">Reports</a>{% if user.master %}<a href="/admin/users">Users</a>{% if COUPONS_ENABLED %}<a href="/admin/coupons">Coupons</a>{% endif %}<a href="/admin/payments">Payments</a><a href="/admin/audit">Audit</a>{% endif %}
@@ -24,7 +27,7 @@
 </div></main>
 <footer><div class="wrap">
   <div class="foot-cols">
-    <div><a class="brand" href="/">{{ BRAND_HEAD }}<span>{{ BRAND_TAIL }}</span></a><p class="foot-tag">Bank statement analysis for lending teams.</p></div>
+    <div><a class="brand" href="/" aria-label="{{ BRAND }} home"><img class="brand-mark" src="/static/logo-mark.svg?v={{ ASSET_V }}" alt="" width="30" height="30"><em>{{ BRAND_HEAD }}<span>{{ BRAND_TAIL }}</span></em></a><p class="foot-tag">Bank statement analysis for lending teams.</p></div>
     <div><h4>Product</h4><a href="/#how">How it works</a><a href="/#pricing">Pricing</a><a href="/banks">Supported banks</a></div>
     <div><h4>Trust</h4><a href="/security">Security</a><a href="/privacy">Privacy Policy</a><a href="/terms">Terms of Use</a></div>
     <div><h4>Help</h4><a href="/grievance">Grievance officer</a><a href="/#faq">Questions</a><a href="/login">Sign in</a></div>
@@ -32,4 +35,73 @@
   <p>{{ BRAND }} is a software platform. It reads the PDF you upload and computes figures from it. It does not verify the statement with the bank, is not a lender or a credit bureau, and its reports are decision support, not a credit decision. Users are responsible for obtaining the account holder's consent and for the decisions they take. Wallet money is not refundable.</p>
   <div class="foot-bar"><span class="powered">Powered by <b>IgnizAI</b></span></div>
 </div></footer>
+<script>
+/* banking-icon watermark: scattered only into free space (margins and gaps between blocks), never over content or the footer */
+(function(){
+ var L=document.querySelector('.wm'),M=document.querySelector('main'),F=document.querySelector('footer'),B=L&&L.querySelector('.wm-box');
+ if(!B||!M)return;
+ var NAMES=[].map.call(L.querySelectorAll('symbol'),function(s){return s.id}),
+     io=('IntersectionObserver' in window)?new IntersectionObserver(function(es){es.forEach(function(e){e.target.classList.toggle('live',e.isIntersecting)})},{rootMargin:'250px 0px'}):null,
+     timer=0,first=true;
+ function seedOf(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+ function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+ function makeNoise(r){var g=[],i;for(i=0;i<4096;i++)g.push(r());function p(a,b){return g[((b&63)<<6)+(a&63)]}
+  return function(x,y){var gx=Math.floor(x),gy=Math.floor(y),fx=x-gx,fy=y-gy,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+   return(p(gx,gy)*(1-u)+p(gx+1,gy)*u)*(1-v)+(p(gx,gy+1)*(1-u)+p(gx+1,gy+1)*u)*v}}
+ var BOX={IMG:1,VIDEO:1,CANVAS:1,SVG:1,INPUT:1,SELECT:1,TEXTAREA:1,BUTTON:1,IFRAME:1,TABLE:1};
+ function hasText(el){for(var n=el.firstChild;n;n=n.nextSibling){if(n.nodeType===3&&/\S/.test(n.nodeValue))return true}return false}
+ function pseudo(el,w){var c=getComputedStyle(el,w).content;return c&&c!=='none'&&c!=='normal'}
+ function boxy(cs){return cs.backgroundImage!=='none'||(cs.backgroundColor!=='rgba(0, 0, 0, 0)'&&cs.backgroundColor!=='transparent')||cs.boxShadow!=='none'||
+  ['Top','Right','Bottom','Left'].some(function(s){return parseFloat(cs['border'+s+'Width'])>0&&cs['border'+s+'Style']!=='none'})}
+ function build(){
+  if(io)io.disconnect();
+  B.textContent='';
+  var sx=window.pageXOffset,sy=window.pageYOffset,mt=M.getBoundingClientRect().top+sy,
+      bot=F?F.getBoundingClientRect().top+sy:document.documentElement.scrollHeight,
+      W=document.documentElement.clientWidth,H=Math.round(bot-mt);
+  L.style.top=mt+'px';L.style.height=Math.max(0,H)+'px';           /* the layer ends where the footer begins */
+  if(H<80||W<300||!NAMES.length)return;
+  var C=10,gw=Math.ceil(W/C)+1,gh=Math.ceil(H/C)+1,occ=new Uint8Array(gw*gh);   /* 0 free, 1 near content, 2 keep-out */
+  function mark(x0,y0,x1,y1,v){var a=Math.max(0,Math.floor(x0/C)),b=Math.max(0,Math.floor(y0/C)),c=Math.min(gw-1,Math.floor(x1/C)),d=Math.min(gh-1,Math.floor(y1/C));
+   for(var j=b;j<=d;j++)for(var i=a;i<=c;i++)if(occ[j*gw+i]<v)occ[j*gw+i]=v}
+  var els=M.querySelectorAll('*'),i,el,r,cs,rvShift=new Map();
+  for(i=0;i<els.length;i++){el=els[i];if(el.ownerSVGElement)continue;r=el.getBoundingClientRect();if(r.width<2||r.height<2)continue;
+   cs=getComputedStyle(el);if(cs.display==='none')continue; if(el.closest('.y-track'))continue;   /* marquee text moves; its .y-marquee box (overflow hidden) is excluded instead */   /* visibility:hidden text (typewriter ghost) still holds its space */
+   if(!(BOX[el.tagName.toUpperCase()]||cs.overflow!=='visible'||boxy(cs)||hasText(el)||pseudo(el,'::before')||pseudo(el,'::after')))continue;
+   var rv=el.closest('.rv'),ty=0;if(rv){ty=rvShift.get(rv);if(ty===undefined){var tf=getComputedStyle(rv).transform;ty=(tf&&tf!=='none')?new DOMMatrix(tf).m42:0;rvShift.set(rv,ty)}}   /* undo the slide-in offset so final positions are used */
+   var x0=r.left+sx,x1=r.right+sx,ya=r.top+sy-mt,yb=r.bottom+sy-mt,y0=Math.min(ya,ya-ty),y1=Math.max(yb,yb-ty);   /* keep both the revealed and the pre-reveal position clear */
+   mark(x0-64,y0-64,x1+64,y1+64,1);mark(x0-14,y0-14,x1+14,y1+14,2);
+  }
+  var rnd=mulberry(seedOf(location.pathname)),noise=makeNoise(rnd),
+      MAX=Math.min(640,Math.round(W*H/5200)),HC=96,hw=Math.ceil(W/HC)+1,hh=Math.ceil(H/HC)+1,hg=new Array(hw*hh),
+      placed=0,t,made=[],frag=document.createDocumentFragment();
+  for(t=0;t<MAX*45&&placed<MAX;t++){
+   var x=rnd()*W,y=rnd()*H,n=noise(x/380,y/380);                    /* n: slow noise that makes denser clusters and emptier patches */
+   if(n<.2||(n<.45&&rnd()>(n-.2)/.25))continue;
+   var s=Math.round(14+Math.pow(rnd(),1.7)*11),h=s/2+8,v=s/2+11,
+       a=Math.floor((x-h)/C),b=Math.floor((y-v)/C),c=Math.floor((x+h)/C),d=Math.floor((y+h)/C),ok=x-h>=0&&x+h<=W&&y-v>=0&&y+h<=H-4,j,k;   /* fully inside the layer: never touches the footer edge */
+   for(j=b;ok&&j<=d;j++)for(k=a;k<=c;k++)if(occ[j*gw+k]>1){ok=false;break}
+   if(!ok)continue;
+   var gap=18+(1-n)*46,cx=Math.floor(x/HC),cy=Math.floor(y/HC),gy,gx,cell,q,o2,dx,dy,mn;
+   for(gy=Math.max(0,cy-1);ok&&gy<=Math.min(hh-1,cy+1);gy++)for(gx=Math.max(0,cx-1);gx<=Math.min(hw-1,cx+1);gx++){
+    cell=hg[gy*hw+gx];if(cell)for(q=0;q<cell.length;q++){o2=cell[q];dx=o2[0]-x;dy=o2[1]-y;mn=(o2[2]+s)/2+gap;if(dx*dx+dy*dy<mn*mn){ok=false;break}}
+    if(!ok)break}
+   if(!ok)continue;
+   (hg[cy*hw+cx]=hg[cy*hw+cx]||[]).push([x,y,s]);placed++;
+   var near=occ[Math.floor(y/C)*gw+Math.floor(x/C)]===1,op=Math.min(.3,(.15+rnd()*.13)*(near?.55:1)*(.75+.5*n)),e=document.createElement('i');
+   e.style.cssText='left:'+(x-s/2).toFixed(1)+'px;top:'+(y-s/2).toFixed(1)+'px;width:'+s+'px;height:'+s+'px;--o:'+op.toFixed(2)+';--r:'+Math.round((rnd()-.5)*50)+'deg;--dx:'+((rnd()-.5)*6).toFixed(1)+'px;--dy:-'+(4+rnd()*5).toFixed(1)+'px;--t:'+(18+rnd()*14).toFixed(1)+'s;--d:-'+(rnd()*20).toFixed(1)+'s';
+   e.innerHTML='<svg><use href="#'+NAMES[Math.floor(rnd()*NAMES.length)]+'"/></svg>';
+   frag.appendChild(e);made.push(e);
+  }
+  B.appendChild(frag);
+  if(io)made.forEach(function(e){io.observe(e)});
+ }
+ function schedule(){clearTimeout(timer);timer=setTimeout(function(){requestAnimationFrame(build)},220)}
+ build();
+ addEventListener('resize',schedule);addEventListener('load',schedule);
+ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(schedule);
+ if('ResizeObserver' in window)new ResizeObserver(function(){if(first){first=false;return}schedule()}).observe(M);
+})();
+</script>
+{% block scripts %}{% endblock %}
 </body></html>

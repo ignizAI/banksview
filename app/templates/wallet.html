@@ -2,6 +2,8 @@
 {% block body %}
 <h1>Wallet</h1><p class="sub">Choose a pack. Each report costs {{ PRICE }}.</p>
 {% if error %}<div class="banner bad">{{ error }}</div>{% endif %}
+{% if notice %}<div class="banner ok" role="status">{{ notice }}</div>{% endif %}
+{% if PAYMENT_MODE == 'contact_admin' %}<div class="banner" role="note"><b>Payments: contact admin.</b> Online payment is not available yet. Choose your plan below, then contact the admin{% if GRIEVANCE_EMAIL %} at <a href="mailto:{{ GRIEVANCE_EMAIL }}">{{ GRIEVANCE_EMAIL }}</a>{% endif %}{% if SUPPORT_PHONE %} or on {{ SUPPORT_PHONE }}{% endif %} to pay. Your wallet is credited once payment is confirmed.</div>{% endif %}
 <div class="pg" id="co">
   <aside class="pg-sum">
     <div class="pg-merch"><span class="pg-logo">{{ BRAND_HEAD }}<i>{{ BRAND_TAIL }}</i></span><small>Your wallet</small></div>
@@ -16,7 +18,7 @@
   </aside>
 
   <section class="pg-pay">
-    <h1>Choose your pack</h1><p class="sub">Pick one option, then pay.</p>
+    <h1>Choose your pack</h1><p class="sub">{% if PAYMENT_MODE == 'contact_admin' %}Pick your plan. The admin will confirm payment and add the credit.{% else %}Pick one option, then pay.{% endif %}</p>
     <form method="post" action="/wallet/topup" id="tf"><input type="hidden" name="csrf" value="{{ csrf }}">
       <div class="pg-packs" role="radiogroup" aria-label="Payment options">
       {% for k in packs %}
@@ -31,15 +33,15 @@
       <button class="btn big pg-cta" id="go" disabled>Choose a pack</button>
     </form>
     {% if PAYMENT_MODE == 'mock' %}<p class="hint" style="margin-top:10px">Test mode: payments are simulated and no real money moves.</p>{% endif %}
-    <div class="pg-trust"><span>Encrypted connection</span><span>Pay by UPI, cards or net banking</span><span>Receipt in your transaction list</span></div>
+    <div class="pg-trust"><span>Encrypted connection</span>{% if PAYMENT_MODE != 'contact_admin' %}<span>Pay by UPI, cards or net banking</span>{% endif %}<span>Receipt in your transaction list</span></div>
   </section>
 </div>
 <script>
-(function(){var r=document.querySelectorAll('.pg-pack input'),go=document.getElementById('go');
+(function(){var CONTACT={{ 'true' if PAYMENT_MODE == 'contact_admin' else 'false' }};var r=document.querySelectorAll('.pg-pack input'),go=document.getElementById('go');
  function sel(){var c=document.querySelector('.pg-pack input:checked');r.forEach(function(i){i.parentNode.classList.toggle('on',i.checked)});
   if(!c){document.getElementById('sName').textContent='\u2014';document.getElementById('sRep').textContent='\u2014';document.getElementById('sPay').textContent='\u2014';go.disabled=true;go.textContent='Choose a pack';return}
   document.getElementById('sName').textContent=c.dataset.name;document.getElementById('sRep').textContent=c.dataset.rep;document.getElementById('sPay').textContent=c.dataset.pay;
-  go.disabled=false;go.textContent='Continue to pay '+c.dataset.pay}
+  go.disabled=false;go.textContent=CONTACT?'Request this plan':'Continue to pay '+c.dataset.pay}
  r.forEach(function(i){i.addEventListener('change',sel)});sel()})();
 </script>
 <div class="card"><h2>Transactions</h2>

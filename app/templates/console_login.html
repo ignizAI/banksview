@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Admin sign in | {{ BRAND }}</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#1C78FF">
+<link rel="stylesheet" href="/static/admin.css?v={{ ASSET_A }}">
+</head><body class="signin">
+{% include "console_wm.html" %}
+<div class="signbox">
+  <span class="logo"><img src="/static/logo-mark.svg" alt="" width="28" height="28">{{ BRAND }}<small>Admin</small></span>
+  <h1>Admin sign in</h1>
+  <p class="sub" style="margin-bottom:16px">Restricted to {{ BRAND }} administrators.</p>
+  {% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/admin/login" autocomplete="on">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label for="e">Username</label><input id="e" type="text" name="email" value="{{ email }}" required autocomplete="username" autocapitalize="none" spellcheck="false" autofocus><small>Your admin email address.</small></div>
+    <div class="field"><label for="p">Password</label><input id="p" type="password" name="password" required autocomplete="current-password"></div>
+    <button class="btn primary" style="width:100%">Sign in</button>
+  </form>
+  <p class="fine">Sign-ins and record views are logged. The session ends after {{ ADMIN_IDLE }} idle minutes.</p>
+</div>
+<script src="/static/admin-wm.js?v={{ ASSET_A }}"></script>
+</body></html>

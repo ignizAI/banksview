@@ -94,19 +94,28 @@ CREATE TABLE IF NOT EXISTS audit_log (       -- append-only record of who did wh
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS ix_audit_user ON audit_log(user_id, id);
-CREATE TABLE IF NOT EXISTS otps (            -- one-time codes sent to a mobile number (stored hashed)
+CREATE TABLE IF NOT EXISTS admin_notifications (  -- things an admin should act on, e.g. a customer chose a plan and needs to pay
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    purpose TEXT NOT NULL,                    -- signup | login
-    mobile TEXT NOT NULL,                     -- recipient key: the email address the code was sent to
-    email TEXT,
-    payload TEXT,                             -- signup details held until the number is verified
-    code_hash TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    expires_at INTEGER NOT NULL,              -- unix seconds
-    consumed INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
+    kind TEXT NOT NULL,                       -- plan_request
+    user_id INTEGER NOT NULL,
+    pack TEXT,
+    amount_paise INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    handled_at TEXT,
+    handled_by INTEGER
 );
-CREATE INDEX IF NOT EXISTS ix_otps_mobile ON otps(mobile, created_at);
+CREATE INDEX IF NOT EXISTS ix_adm_notif ON admin_notifications(handled_at, id);
+CREATE TABLE IF NOT EXISTS admin_sessions (  -- one row per admin sign-in: when it started, last activity, and how it ended
+    sid TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at TEXT,
+    ended_reason TEXT,                        -- signed out | access removed | ended by server command
+    ip TEXT,
+    user_agent TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_admin_sessions_user ON admin_sessions(user_id, started_at);
 CREATE TABLE IF NOT EXISTS coupons (         -- created only by a master account
     code TEXT PRIMARY KEY,
     percent INTEGER NOT NULL,
@@ -158,10 +167,12 @@ def init_db() -> None:
     conn = connect()
     try:
         conn.executescript(SCHEMA)
+        conn.execute("DROP TABLE IF EXISTS otps")        # sign-in codes were removed: accounts use email and password
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
         for col, ddl in (("is_master", "INTEGER NOT NULL DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER NOT NULL DEFAULT 0"),
                          ("has_password", "INTEGER NOT NULL DEFAULT 1"), ("mobile_verified", "INTEGER NOT NULL DEFAULT 0"),
-                         ("privileged", "INTEGER NOT NULL DEFAULT 0"), ("price_paise", "INTEGER"), ("session_epoch", "INTEGER NOT NULL DEFAULT 0")):
+                         ("privileged", "INTEGER NOT NULL DEFAULT 0"), ("price_paise", "INTEGER"), ("session_epoch", "INTEGER NOT NULL DEFAULT 0"),
+                         ("is_admin", "INTEGER NOT NULL DEFAULT 0"), ("deleted_at", "TEXT"), ("country_code", "TEXT NOT NULL DEFAULT '+91'")):   # is_admin: may open the admin console (separate from master test accounts)
             if col not in cols:  # databases created before this column existed
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} {ddl}")
         lcols = {r["name"] for r in conn.execute("PRAGMA table_info(wallet_ledger)")}
@@ -172,13 +183,23 @@ def init_db() -> None:
         for col, ddl in (("credit_paise", "INTEGER"), ("coupon_code", "TEXT"), ("pack", "TEXT")):
             if col not in pcols:
                 conn.execute(f"ALTER TABLE payments ADD COLUMN {col} {ddl}")
-        try:   # one account per mobile number (ignored if old test data already shares a number)
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_mobile ON users(mobile) WHERE mobile IS NOT NULL")
+        try:   # one account per phone number (country code + number); ignored if old test data already shares a number
+            conn.execute("DROP INDEX IF EXISTS ux_users_mobile")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_users_phone ON users(country_code, mobile) WHERE mobile IS NOT NULL")
         except Exception:
             pass
         rcols = {r["name"] for r in conn.execute("PRAGMA table_info(reports)")}
         if "borrower_consent_at" not in rcols:
             conn.execute("ALTER TABLE reports ADD COLUMN borrower_consent_at TEXT")
+        if "download_count" not in rcols:      # how many times the customer downloaded the Excel file
+            conn.execute("ALTER TABLE reports ADD COLUMN download_count INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE reports ADD COLUMN last_downloaded_at TEXT")
+            conn.execute("UPDATE reports SET download_count=(SELECT COUNT(*) FROM audit_log a WHERE a.event='download_report' AND a.ref=reports.id), "
+                         "last_downloaded_at=(SELECT MAX(created_at) FROM audit_log a WHERE a.event='download_report' AND a.ref=reports.id)")   # history before the counter existed
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_reports_created ON reports(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_payments_created ON payments(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_users_created ON users(created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_audit_event ON audit_log(event, created_at)")
     finally:
         conn.close()
 

@@ -24,6 +24,8 @@ class PaymentError(Exception):
 
 def create_order(user_id: int, credit_paise: int, coupon: str | None = None, pack: str | None = None) -> dict:
     """credit_paise is what the wallet receives. With a coupon the customer pays less than that."""
+    if config.PAYMENT_MODE == "contact_admin":
+        raise PaymentError("Online payment is not available. Please contact the admin to recharge your wallet.")
     amount_paise, quote = credit_paise, None
     if coupon:
         with db() as conn:

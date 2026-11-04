@@ -1,0 +1,10 @@
+{% macro pager(pg, path, params) %}
+<div class="pager">
+  <span>{{ pg.total | num }} record{{ '' if pg.total == 1 else 's' }} · page {{ pg.page }} of {{ pg.pages }}</span>
+  <span style="display:flex;gap:8px">
+    {% if pg.page > 1 %}<a href="{{ urlq(path, page_no=pg.page-1, **params) }}">Previous</a>{% else %}<span class="dis">Previous</span>{% endif %}
+    {% if pg.page < pg.pages %}<a href="{{ urlq(path, page_no=pg.page+1, **params) }}">Next</a>{% else %}<span class="dis">Next</span>{% endif %}
+  </span>
+</div>
+{% endmacro %}
+{% macro status_pill(s) %}<span class="pill {{ 'ok' if s in ('paid','done') else ('bad' if s == 'failed' else 'warn') }}">{{ s }}</span>{% endmacro %}

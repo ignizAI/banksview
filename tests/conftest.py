@@ -19,10 +19,8 @@ def client():
     security.signup_throttle.hits.clear()
     security.topup_throttle.hits.clear()
     security.utr_throttle.hits.clear()
-    from app import otp
-    otp.LAST.clear()
+    security.admin_throttle.hits.clear()
     from app import config
-    config.OTP_RESEND_SECONDS = 0        # tests that check the cooldown set it back
     config.COUPONS_ENABLED = True       # the coupon tests exercise the feature; the default (off) is tested separately
     with TestClient(main.app) as c:
         yield c
@@ -33,31 +31,24 @@ def csrf_from(html: str) -> str:
     return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
 
 
+PASSWORD = "correct-horse-battery"
+
+
 def signup_otp(client, mobile="9876543210", email="asha@example.com", name="Asha Rao", role="dsa", org="Rao Finserve", **over):
-    """Full OTP sign-up: submit the form, read the dev code, verify it. Returns the final response."""
-    from app import otp
+    """Password sign-up (name kept for the many callers). Returns the POST /signup response."""
     r = client.get("/signup")
-    data = {"name": name, "email": email, "role": role, "org": org, "mobile": mobile, "csrf": csrf_from(r.text),
-            "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
+    data = {"name": name, "email": email, "role": role, "org": org, "mobile": mobile, "country": "+91", "password": PASSWORD, "confirm": PASSWORD,
+            "csrf": csrf_from(r.text), "agree_terms": "1", "agree_privacy": "1", "agree_borrower": "1"}
     data.update({k: v for k, v in over.items() if v is not None})
     for k, v in over.items():
         if v is None:
             data.pop(k, None)
-    r = client.post("/signup", data=data, follow_redirects=False)
-    if r.status_code != 303:
-        return r
-    page = client.get("/verify")
-    return client.post("/verify", data={"code": otp.LAST[email], "csrf": csrf_from(page.text)}, follow_redirects=False)
+    return client.post("/signup", data=data, follow_redirects=False)
 
 
-def otp_login(client, mobile="9876543210", email="asha@example.com"):
-    from app import otp
+def otp_login(client, mobile="9876543210", email="asha@example.com", password=PASSWORD):
     r = client.get("/login")
-    r = client.post("/login", data={"email": email, "csrf": csrf_from(r.text)}, follow_redirects=False)
-    if r.status_code != 303:
-        return r
-    page = client.get("/verify")
-    return client.post("/verify", data={"code": otp.LAST[email], "csrf": csrf_from(page.text)}, follow_redirects=False)
+    return client.post("/login", data={"email": email, "password": password, "csrf": csrf_from(r.text)}, follow_redirects=False)
 
 
 @pytest.fixture()

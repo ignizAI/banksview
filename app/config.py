@@ -39,15 +39,15 @@ MAX_TOPUP_PAISE = _int("MAX_TOPUP_PAISE", 10000000)        # Rs 1,00,000 per top
 # --- Upload limits ---
 MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 15)
 MAX_PDF_PAGES = _int("MAX_PDF_PAGES", 300)
-KEEP_UPLOADED_PDF = os.environ.get("KEEP_UPLOADED_PDF", "0") == "1"   # default: delete after parsing
 DUPLICATE_WINDOW_DAYS = _int("DUPLICATE_WINDOW_DAYS", 30)
-REPORT_RETENTION_DAYS = _int("REPORT_RETENTION_DAYS", 90)
+REPORT_RETENTION_DAYS = _int("REPORT_RETENTION_DAYS", 30)      # the Excel file, summary and file name are deleted this many days after creation
 
 # --- Sessions ---
 BACKUP_DAILY = os.environ.get("BACKUP_DAILY", "0") == "1"           # in-app daily database backup
 BACKUP_KEEP = _int("BACKUP_KEEP", 14)
 SESSION_DAYS = _int("SESSION_DAYS", 7)
 SESSION_IDLE_MINUTES = _int("SESSION_IDLE_MINUTES", 30)     # an unattended screen signs itself out
+ADMIN_IDLE_MINUTES = _int("ADMIN_IDLE_MINUTES", 20)           # the admin console signs itself out sooner
 ALLOWED_HOSTS = [h.strip().lower() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
 ALLOW_SIGNUP = os.environ.get("ALLOW_SIGNUP", "1") == "1"
 
@@ -70,22 +70,10 @@ MASTER_ENABLED = APP_ENV != "production" or os.environ.get("ALLOW_MASTER", "0") 
 COUPONS_ENABLED = os.environ.get("COUPONS_ENABLED", "0") == "1"   # coupons are switched off for now; set COUPONS_ENABLED=1 to bring them back
 COUPON_PERCENT = _int("COUPON_PERCENT", 20)
 
-# --- Mobile OTP sign-in ---
-OTP_PROVIDER = os.environ.get("OTP_PROVIDER", "dev")      # dev (code shown on screen and in the log) | email | msg91
-OTP_TTL_SECONDS = _int("OTP_TTL_SECONDS", 300)
-OTP_MAX_ATTEMPTS = _int("OTP_MAX_ATTEMPTS", 5)
-OTP_RESEND_SECONDS = _int("OTP_RESEND_SECONDS", 30)
-OTP_SENDS_PER_HOUR = _int("OTP_SENDS_PER_HOUR", 5)
-SMTP_HOST = os.environ.get("SMTP_HOST", "")
-SMTP_PORT = _int("SMTP_PORT", 587)
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
-SMTP_FROM = os.environ.get("SMTP_FROM", "")
-MSG91_AUTH_KEY = os.environ.get("MSG91_AUTH_KEY", "")
-MSG91_TEMPLATE_ID = os.environ.get("MSG91_TEMPLATE_ID", "")     # DLT-registered OTP template
 
 # --- Payments ---
-PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "mock")      # mock | razorpay | upi_qr
+PAYMENT_MODE = os.environ.get("PAYMENT_MODE", "contact_admin")      # mock | razorpay | upi_qr | contact_admin (customers pick a plan; admin collects payment and adds credit)
+SUPPORT_PHONE = os.environ.get("SUPPORT_PHONE", "")          # shown with the "contact admin" payment message
 UPI_ID = os.environ.get("UPI_ID", "")                       # payee UPI ID (VPA) for PAYMENT_MODE=upi_qr; blank until supplied
 UPI_PAYEE_NAME = os.environ.get("UPI_PAYEE_NAME", "")
 RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
@@ -107,12 +95,6 @@ def check_production_safety() -> None:
             raise RuntimeError("Set SECRET_KEY before running in production.")
         if PAYMENT_MODE == "mock":
             raise RuntimeError("PAYMENT_MODE=mock credits wallets without real money; use razorpay in production.")
-        if OTP_PROVIDER == "dev":
-            raise RuntimeError("OTP_PROVIDER=dev shows the code on screen; configure a real SMS provider (OTP_PROVIDER=msg91) in production.")
-        if OTP_PROVIDER == "email" and not (SMTP_HOST and SMTP_FROM):
-            raise RuntimeError("SMTP_HOST and SMTP_FROM are required for email OTP.")
-        if OTP_PROVIDER == "msg91" and not (MSG91_AUTH_KEY and MSG91_TEMPLATE_ID):
-            raise RuntimeError("MSG91_AUTH_KEY and MSG91_TEMPLATE_ID are required for SMS OTP.")
         if not [h for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1", "testserver")]:
             raise RuntimeError("Set ALLOWED_HOSTS to your real domain(s), for example banksview.com,www.banksview.com.")
         if PAYMENT_MODE == "upi_qr" and not UPI_ID:

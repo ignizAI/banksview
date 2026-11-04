@@ -9,12 +9,8 @@
 {% endif %}
 
 <div class="card">
-{% if low %}
-  <h2>Add money to start</h2>
-  <p class="muted">Your balance is below {{ PRICE }}. Choose a pack on the wallet page to add reports.</p>
-  <a class="btn" href="/wallet">Add money to wallet</a>
-{% else %}
-  <form method="post" action="/reports" enctype="multipart/form-data" id="up">
+{% if low %}<p class="muted" style="margin-top:0">Your balance is below {{ PRICE }}. You can fill this in, but you will be taken to the wallet page to choose a plan before a report is generated.</p>{% endif %}
+  <form method="post" action="/reports" enctype="multipart/form-data" id="up"{% if low %} novalidate data-low="1"{% endif %}>
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label class="drop" id="drop"><input type="file" name="file" accept="application/pdf,.pdf" required id="f">
       <b id="fn">Choose the PDF bank statement</b><small>PDF only, up to {{ MAX_MB }} MB. Savings, current or overdraft account.</small></label>
@@ -26,7 +22,6 @@
     <button class="btn big" id="go">Generate report &middot; {{ PRICE }}</button>
     <span class="hint" style="margin-left:10px">The password is used once to open the file and is never stored.</span>
   </form>
-{% endif %}
 </div>
 
 <div class="card"><h2>Your reports</h2>
@@ -44,6 +39,6 @@
 <script>
 var f=document.getElementById('f'),fn=document.getElementById('fn'),d=document.getElementById('drop'),up=document.getElementById('up');
 if(f){f.addEventListener('change',function(){if(f.files[0]){fn.textContent=f.files[0].name;d.classList.add('on')}});
-up.addEventListener('submit',function(){var b=document.getElementById('go');b.disabled=true;b.textContent='Reading statement...'});}
+up.addEventListener('submit',function(e){if(up.dataset.low){e.preventDefault();location.href='/wallet?m=need_balance';return}var b=document.getElementById('go');b.disabled=true;b.textContent='Reading statement...'});}
 </script>
 {% endblock %}

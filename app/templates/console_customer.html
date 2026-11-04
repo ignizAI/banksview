@@ -1,0 +1,76 @@
+{% extends "console_base.html" %}{% from "console_macros.html" import status_pill %}{% block title %}{{ c.name }}{% endblock %}
+{% block body %}
+<p style="margin:0 0 6px"><a href="/admin/customers">&larr; All customers</a></p>
+<h1>{{ c.name }}{% if c.deleted_at %} <span class="pill bad">deleted</span>{% endif %}{% if c.is_master %} <span class="pill">test account</span>{% endif %}{% if c.is_admin %} <span class="pill">admin</span>{% endif %}</h1>
+<p class="sub">{% if c.deleted_at %}Deleted {{ c.deleted_at | ist }}{% else %}{{ c.email }}{% if c.mobile %} · {{ c.country_code }} {{ c.mobile }}{% endif %}{% endif %}</p>
+{% if done == 'created' %}<div class="banner ok" role="status">Customer added. They sign in with their email and the password you set, and accept the Terms on first sign-in.</div>{% endif %}
+{% if done == 'password' %}<div class="banner ok" role="status">New password set. The customer was signed out everywhere and can sign in with it now.</div>{% endif %}
+{% if done == 'credited' %}<div class="banner ok" role="status">Credit added. The new balance is shown below and the entry is in the wallet history.</div>{% endif %}
+{% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+{% if c.deleted_at %}<div class="banner warn">This customer was deleted. Personal details and reports were erased; payments and wallet history are kept as financial records.</div>{% endif %}
+
+<section class="kpis">
+  <div class="kpi"><div class="l">Wallet balance</div><div class="v">{{ c.balance_paise | paise }}</div><div class="d">{{ c.held_paise | paise }} reserved</div></div>
+  <div class="kpi"><div class="l">Money added</div><div class="v">{{ topped | paise }}</div><div class="d">{{ pays | selectattr('status', 'equalto', 'paid') | list | length }} paid payments</div></div>
+  <div class="kpi"><div class="l">Spent on reports</div><div class="v">{{ stats.spent | paise }}</div><div class="d">{{ stats.done }} reports charged</div></div>
+  <div class="kpi"><div class="l">Statements uploaded</div><div class="v">{{ stats.up }}</div><div class="d">{{ stats.done }} generated · {{ stats.failed }} failed</div></div>
+  <div class="kpi"><div class="l">Excel downloads</div><div class="v">{{ stats.dl }}</div><div class="d">{% set nrep = reps | selectattr('download_count') | list | length %}across {{ nrep }} report{{ '' if nrep == 1 else 's' }}</div></div>
+</section>
+
+{% if not c.deleted_at %}
+<div class="grid2">
+  <section class="card"><h2>Add credit to wallet <small>up to {{ max_credit }} each time</small></h2>
+    <form method="post" action="/admin/customers/{{ c.id }}/credit" onsubmit="this.querySelector('button').disabled=true">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="amt">Amount (Rs)</label><input id="amt" name="amount" inputmode="decimal" placeholder="500" value="{{ form.amount or '' }}" required autocomplete="off"></div>
+      <div class="field"><label for="why">Reason</label><input id="why" name="reason" maxlength="120" placeholder="e.g. offline payment received, refund, goodwill" value="{{ form.reason or '' }}" required autocomplete="off"><small>Saved in the wallet history and the audit log.</small></div>
+      <button class="btn primary">Add credit</button>
+    </form></section>
+  <section class="card"><h2>Set a new password <small>forgotten password or an older account</small></h2>
+    {% if c.is_admin or c.is_master %}<p class="muted">Admin and test passwords are changed on the server.</p>{% else %}
+    <form method="post" action="/admin/customers/{{ c.id }}/password" autocomplete="off" onsubmit="this.querySelector('button').disabled=true">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="np">New password</label><input id="np" name="password" type="text" required minlength="8" maxlength="128" autocomplete="off"><small>At least 8 characters. Tell the customer privately.</small></div>
+      <button class="btn">Set password</button>
+    </form>{% endif %}</section>
+  <section class="card danger"><h2>Delete customer</h2>
+    {% if protected %}<p class="muted">Admin, test and your own accounts cannot be deleted here.</p>
+    {% else %}
+    <p class="muted" style="margin-top:0">Removes the name, email, mobile, company, sign-in and every uploaded report. Payments and wallet history are kept as financial records and cannot be deleted; this customer's balance of {{ c.balance_paise | paise }} is lost. This cannot be undone.</p>
+    <form method="post" action="/admin/customers/{{ c.id }}/delete" onsubmit="return confirm('Delete this customer permanently?')">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="cf">Type <b>{{ c.email }}</b> to confirm</label><input id="cf" name="confirm" autocomplete="off" required></div>
+      <button class="btn danger">Delete customer</button>
+    </form>{% endif %}</section>
+</div>
+{% endif %}
+
+<div class="grid2">
+  <section class="card"><h2>Profile</h2><dl class="kv">
+    <dt>Company</dt><dd>{{ c.org or '-' }}</dd><dt>Role</dt><dd>{{ c.role }}</dd><dt>Joined</dt><dd>{{ c.created_at | ist }}</dd>
+    <dt>Mobile verified</dt><dd>{{ 'Yes' if c.mobile_verified else 'No' }}</dd><dt>Authenticator app</dt><dd>{{ 'On' if c.mfa_enabled else 'Off' }}</dd>
+    <dt>Rate per report</dt><dd>{% if c.privileged and c.price_paise %}{{ c.price_paise | paise }} (privileged){% else %}Standard{% endif %}</dd></dl></section>
+  <section class="card"><h2>Consents given</h2>{% if consents %}<div class="tablewrap"><table><tr><th>Kind</th><th>Version</th><th>From</th><th>When</th></tr>
+    {% for r in consents %}<tr><td>{{ r.kind }}</td><td>{{ r.version }}</td><td>{{ r.ip or '-' }}</td><td class="nw">{{ r.accepted_at | ist }}</td></tr>{% endfor %}</table></div>{% else %}<p class="muted">None recorded.</p>{% endif %}</section>
+</div>
+
+<section class="card"><h2>Reports and downloads <small>borrower names and statement contents are not shown</small></h2>
+{% if reps %}<div class="tablewrap"><table><tr><th>Uploaded</th><th>Status</th><th>Bank</th><th>Account</th><th>Period</th><th class="n">Txns</th><th>Risk</th><th class="n">Charged</th><th class="n">Downloads</th><th>Last download</th></tr>
+{% for r in reps %}<tr><td class="nw">{{ r.created_at | ist }}</td><td>{{ status_pill(r.status) }}{% if r.error_code %}<small>{{ r.error_code }}</small>{% endif %}</td><td>{{ r.bank or '-' }}</td><td>{{ r.account_masked or '-' }}</td>
+<td class="nw">{{ r.period_from or '' }}{% if r.period_to %} to {{ r.period_to }}{% endif %}</td><td class="n">{{ r.txn_count if r.txn_count is not none else '-' }}</td><td>{{ r.risk_band or '-' }}</td><td class="n">{{ r.charged_paise | paise }}</td><td class="n">{{ r.download_count }}</td><td class="nw">{{ r.last_downloaded_at | ist }}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No uploads yet.</p>{% endif %}</section>
+
+<section class="card"><h2>Payment history</h2>
+{% if pays %}<div class="tablewrap"><table><tr><th>Created</th><th>Order</th><th>Provider</th><th>Pack</th><th class="n">Paid</th><th class="n">Wallet credit</th><th>Status</th><th>Reference</th><th>Settled</th></tr>
+{% for r in pays %}<tr><td class="nw">{{ r.created_at | ist }}</td><td>{{ r.order_id }}</td><td>{{ r.provider }}</td><td>{{ r.pack or '-' }}</td><td class="n">{{ r.amount_paise | paise }}</td><td class="n">{{ (r.credit_paise or r.amount_paise) | paise }}</td><td>{{ status_pill(r.status) }}</td><td>{{ r.payment_id or '-' }}</td><td class="nw">{{ r.paid_at | ist }}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="muted">No payments yet.</p>{% endif %}</section>
+
+<div class="grid2">
+  <section class="card"><h2>Wallet history <small>latest 60</small></h2>
+  {% if ledger %}<div class="tablewrap"><table><tr><th>When</th><th>Type</th><th class="n">Amount</th><th class="n">Balance after</th><th>Note</th></tr>
+  {% for r in ledger %}<tr><td class="nw">{{ r.created_at | ist }}</td><td>{{ r.kind }}</td><td class="n">{{ r.amount_paise | paise }}</td><td class="n">{{ r.balance_after_paise | paise }}</td><td>{{ r.note or r.ref or '' }}</td></tr>{% endfor %}</table></div>{% else %}<p class="muted">No wallet activity.</p>{% endif %}</section>
+  <section class="card"><h2>Recent activity <small>latest 40</small></h2>
+  {% if acts %}<div class="tablewrap"><table><tr><th>When</th><th>Event</th><th>Detail</th><th>From</th></tr>
+  {% for r in acts %}<tr><td class="nw">{{ r.created_at | ist }}</td><td>{{ r.event }}</td><td>{{ r.ref or '' }}</td><td>{{ r.ip or '' }}</td></tr>{% endfor %}</table></div>{% else %}<p class="muted">Nothing recorded.</p>{% endif %}</section>
+</div>
+{% endblock %}

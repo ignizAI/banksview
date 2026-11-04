@@ -4,7 +4,7 @@ Upload a PDF bank statement (with its password) -> validated -> 208 metrics, fla
 
 ## Run locally (Python 3.9 or newer; tested on 3.13)
     pip install -r requirements-dev.txt
-    uvicorn app.main:app --reload          # http://localhost:8000, test payments, sign-in code shown on screen, data in ./data
+    uvicorn app.main:app --reload          # http://localhost:8000, test payments, data in ./data
     pytest tests                           # about 2 minutes
 
 Deploying: see docs/DEPLOY.md (Fly.io, Mumbai). It does not run on Vercel: it needs a persistent disk.
@@ -39,6 +39,18 @@ python -m app.cli master tester@example.com x revoke              # remove maste
 ```
 
 Disabled when `APP_ENV=production` unless `ALLOW_MASTER=1`. It can only be created from the command line, never from the website.
+
+## Admin console (analytics and records)
+
+A separate sign-in at `/admin/login` (not linked from the public site). It shows an analytics dashboard (sign-ups, revenue, reports generated and failed, downloads, customer journey), every customer with wallet, spend, uploads and downloads, payment history, reports with download counts, and read-only views and CSV exports of the main tables. Admins can also add a customer, add credit to a wallet (a reason is required) and delete a customer. A customer with payments or wallet history is erased in place (name, email, mobile, company, reports) while payment and wallet records stay, because those cannot be deleted. Every action is audit-logged. The Admins page lists administrators, shows who is signed in, logs each sign-in and sign-out with its length, and lets an admin add another administrator or remove one's access. It never shows password hashes, authenticator secrets, borrower names, file names or statement contents.
+
+```
+python -m app.cli admin you@example.com 'a-passphrase-of-12-or-more-characters'   # create, or promote an existing account
+python -m app.cli admin you@example.com x revoke                                  # remove admin access
+```
+- Admin is separate from master (test) accounts and works in production. Sign-in is username (the admin email) and password only; use a long unique passphrase. Failed attempts are throttled and logged.
+- The admin session is a separate cookie that ends after `ADMIN_IDLE_MINUTES` (default 20) idle minutes. Sign-ins, customer views and exports are written to the audit log.
+- Download counts start with each report's own counter; older downloads are counted from the audit log when the new version first starts.
 
 ## Legal, consent and sign-in settings
 

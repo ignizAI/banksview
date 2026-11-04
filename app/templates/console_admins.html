@@ -1,0 +1,46 @@
+{% extends "console_base.html" %}{% block title %}Admins{% endblock %}
+{% block body %}
+<h1>Administrators</h1>
+<p class="sub">Who can open this console, and when they signed in and out. Times are Indian time.</p>
+{% if done == 'created' %}<div class="banner ok" role="status">Administrator added. Give them the username and password privately; they sign in at <b>/admin/login</b>.</div>{% endif %}
+{% if done == 'removed' %}<div class="banner ok" role="status">Admin access removed. Any session they had has ended.</div>{% endif %}
+{% if error %}<div class="banner" role="alert">{{ error }}</div>{% endif %}
+
+<section class="kpis" aria-label="Admin figures">
+  <div class="kpi"><div class="l">Administrators</div><div class="v">{{ admins | length }}</div><div class="d">accounts with admin access</div></div>
+  <div class="kpi"><div class="l">Signed in now</div><div class="v">{{ online }}</div><div class="d">idle sessions end after {{ ADMIN_IDLE }} minutes</div></div>
+  <div class="kpi"><div class="l">Sign-ins, last 7 days</div><div class="v">{{ signins_7d }}</div><div class="d">across all administrators</div></div>
+  <div class="kpi"><div class="l">Failed sign-ins, 24 hours</div><div class="v">{{ failed_24h }}</div><div class="d">wrong password or locked out</div></div>
+</section>
+
+<div class="grid2">
+  <section class="card"><h2>Add an administrator</h2>
+    <form method="post" action="/admin/admins/new" autocomplete="off" onsubmit="this.querySelector('button').disabled=true">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="an">Name</label><input id="an" name="name" value="{{ form.name or '' }}" required maxlength="120"></div>
+      <div class="field"><label for="ae">Username (their email)</label><input id="ae" type="email" name="email" value="{{ form.email or '' }}" required maxlength="200" autocapitalize="none"></div>
+      <div class="field"><label for="ap">Password</label><input id="ap" type="password" name="password" required minlength="12" autocomplete="new-password"><small>At least 12 characters, not containing their name or email.</small></div>
+      <div class="field"><label for="ac">Repeat password</label><input id="ac" type="password" name="confirm" required minlength="12" autocomplete="new-password"></div>
+      <button class="btn primary">Add administrator</button>
+    </form>
+    <p class="fine">An administrator can see every customer's details and payments, add wallet credit and delete customers. Add only people you trust.</p></section>
+  <section class="card"><h2>Administrator accounts</h2>
+    <div class="tablewrap"><table><tr><th>Administrator</th><th>Status</th><th class="n">Sign-ins</th><th>Last signed in</th><th></th></tr>
+    {% for a in admins %}<tr>
+      <td>{{ a.name }}{% if a.id == admin.id %} <span class="pill">you</span>{% endif %}<small>{{ a.email }}</small></td>
+      <td>{% if a.online %}<span class="pill ok">Signed in</span>{% else %}<span class="pill">Signed out</span>{% endif %}</td>
+      <td class="n">{{ a.sessions }}</td><td class="nw">{{ a.last_in | ist }}</td>
+      <td class="n">{% if a.id != admin.id %}<form method="post" action="/admin/admins/{{ a.id }}/remove" onsubmit="return confirm('Remove admin access for {{ a.email }}?')" style="margin:0">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small danger">Remove access</button></form>{% endif %}</td></tr>
+    {% endfor %}</table></div></section>
+</div>
+
+<section class="card"><h2>Sign-in and sign-out log <small>latest 100 sessions</small></h2>
+{% if log %}<div class="tablewrap"><table><tr><th>Administrator</th><th>Signed in</th><th>Signed out</th><th>How it ended</th><th class="n">Length</th><th>From</th><th>Browser</th></tr>
+{% for r in log %}<tr><td>{{ r.name }}<small>{{ r.email }}</small></td><td class="nw">{{ r.started_at | ist }}</td>
+<td class="nw">{% if r.st.active %}-{% else %}{{ r.st.end.strftime('%Y-%m-%d %H:%M:%S') | ist }}{% endif %}</td>
+<td>{% if r.st.active %}<span class="pill ok">Active now</span>{% else %}{{ r.st.reason }}{% endif %}</td>
+<td class="n">{{ r.st.secs | duration }}</td><td>{{ r.ip or '-' }}</td><td>{{ r.user_agent | browser }}</td></tr>{% endfor %}</table></div>
+<p class="muted" style="margin:10px 0 0;font-size:12.5px">Sessions that nobody signed out of are shown as timed out: {{ ADMIN_IDLE }} minutes after the last page they opened, or 12 hours after signing in. Sessions before this log existed are not listed.</p>
+{% else %}<p class="muted">No sign-ins recorded yet.</p>{% endif %}</section>
+{% endblock %}

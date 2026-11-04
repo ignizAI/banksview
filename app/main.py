@@ -17,10 +17,27 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import banks, config, coupons, excel_report, ingest, metrics, otp, payments, security, wallet
+from . import banks, config, coupons, excel_report, ingest, metrics, payments, phone, security, wallet
 from .db import db, init_db, tx
 
 APP_DIR = Path(__file__).resolve().parent
+
+
+def _start_housekeeping(every_s: int = 3600) -> None:
+    """Delete expired reports every hour while the server runs, not only when it starts, so a file never outlives its retention period."""
+    import logging
+    import threading
+    import time as _time
+
+    def loop():
+        while True:
+            _time.sleep(every_s)
+            try:
+                cleanup_expired()
+                recover_stuck()
+            except Exception:
+                logging.getLogger("banksview").exception("housekeeping failed")
+    threading.Thread(target=loop, name="housekeeping", daemon=True).start()
 
 
 @asynccontextmanager
@@ -29,6 +46,7 @@ async def lifespan(app):
     init_db()
     recover_stuck()
     cleanup_expired()
+    _start_housekeeping()
     if config.BACKUP_DAILY:
         from . import backup
         backup.start_daily()
@@ -95,10 +113,10 @@ templates.env.filters["paise"] = fmt_paise
 _parts = re.findall(r'[A-Z][a-z0-9]*|[a-z0-9]+', config.BRAND)
 _head, _tail = ''.join(_parts[:-1]) or config.BRAND, (_parts[-1] if len(_parts) > 1 else '')
 templates.env.globals.update(BRAND=config.BRAND, BRAND_HEAD=_head, BRAND_TAIL=_tail, PRICE=fmt_paise(config.PRICE_PAISE), MIN_TOPUP=fmt_paise(config.MIN_TOPUP_PAISE),
-                             MIN_TOPUP_RUPEES=config.MIN_TOPUP_PAISE // 100, PRIV_PRICE=config.PRIVILEGED_PRICE_PAISE, MAX_MB=config.MAX_UPLOAD_MB, METRIC_COUNT=len(metrics.REGISTRY), DUP_DAYS=config.DUPLICATE_WINDOW_DAYS, RETAIN_DAYS=config.REPORT_RETENTION_DAYS, PAYMENT_MODE=config.PAYMENT_MODE,
+                             MIN_TOPUP_RUPEES=config.MIN_TOPUP_PAISE // 100, PRIV_PRICE=config.PRIVILEGED_PRICE_PAISE, MAX_MB=config.MAX_UPLOAD_MB, METRIC_COUNT=len(metrics.REGISTRY), DUP_DAYS=config.DUPLICATE_WINDOW_DAYS, RETAIN_DAYS=config.REPORT_RETENTION_DAYS, PAYMENT_MODE=config.PAYMENT_MODE, SUPPORT_PHONE=config.SUPPORT_PHONE,
                              BANKS=banks.SUPPORTED_BANKS, BANK_COUNT=banks.BANK_COUNT, COMPANY_NAME=config.COMPANY_NAME, COMPANY_ADDRESS=config.COMPANY_ADDRESS,
                              GRIEVANCE_EMAIL=config.GRIEVANCE_EMAIL, GRIEVANCE_OFFICER=config.GRIEVANCE_OFFICER, TERMS_VERSION=config.TERMS_VERSION,
-                             CAP_MONTHS=config.LIABILITY_CAP_MONTHS, JURISDICTION=config.JURISDICTION_CITY, MFA_REQUIRED=config.MFA_REQUIRED, COUPON_PERCENT=config.COUPON_PERCENT, COUPONS_ENABLED=config.COUPONS_ENABLED)
+                             CAP_MONTHS=config.LIABILITY_CAP_MONTHS, JURISDICTION=config.JURISDICTION_CITY, MFA_REQUIRED=config.MFA_REQUIRED, COUPON_PERCENT=config.COUPON_PERCENT, COUPONS_ENABLED=config.COUPONS_ENABLED, COUNTRIES=phone.COUNTRIES)
 
 FLASH = {
     "upi_review": ("ok", "Thanks. We received your reference number and will credit your wallet once the payment is confirmed in our bank account."),
@@ -160,7 +178,7 @@ async def guard_and_headers(request: Request, call_next):
         user = current_user(request)
         if user and not user["consent_ok"]:
             return redirect("/terms/accept")
-        if user and config.MFA_REQUIRED and user["has_password"] and not user["mfa_enabled"]:
+        if user and config.MFA_REQUIRED and user["is_master"] and not user["mfa_enabled"]:
             return redirect("/mfa/setup")
     resp = await call_next(request)
     h = resp.headers
@@ -185,6 +203,7 @@ def render(request: Request, name: str, user=None, status: int = 200, **ctx):
     scope = str(user["id"]) if user else "anon"
     flash = FLASH.get(request.query_params.get("m", ""))
     ctx.setdefault("flash", flash)
+    ctx.setdefault("PAYMENT_MODE", config.PAYMENT_MODE)
     if user and user.get("price") and user["price"] != config.PRICE_PAISE and name in ("dashboard.html", "wallet.html"):
         ctx["PRICE"] = fmt_paise(user["price"])     # a privileged customer sees their own rate
     return templates.TemplateResponse(request, name, {"user": user, "csrf": security.make_csrf(scope), **ctx}, status_code=status)
@@ -222,11 +241,6 @@ def landing(request: Request):
     return render(request, "landing.html", current_user(request))      # public page: also shown to signed-in users (the nav has Reports)
 
 
-def _otp_cookie(resp, otp_id: int):
-    resp.set_cookie("otp_pending", security.make_otp_token(otp_id), max_age=1800, httponly=True, samesite="lax", secure=config.APP_ENV == "production")
-    return resp
-
-
 @app.get("/signup", response_class=HTMLResponse)
 def signup_page(request: Request):
     if current_user(request):
@@ -235,11 +249,11 @@ def signup_page(request: Request):
 
 
 @app.post("/signup", response_class=HTMLResponse)
-def signup(request: Request, name: str = Form(""), email: str = Form(""), org: str = Form(""),
-           role: str = Form(""), mobile: str = Form(""), csrf: str = Form(""), agree_terms: str = Form(""), agree_privacy: str = Form(""),
-           agree_borrower: str = Form("")):
-    """Step 1: check the details and email a code to the address. The account is created only after the code is verified."""
-    form = {"name": name, "email": email, "org": org, "role": role, "mobile": mobile}
+def signup(request: Request, name: str = Form(""), email: str = Form(""), org: str = Form(""), role: str = Form(""), mobile: str = Form(""),
+           country: str = Form("+91"), password: str = Form(""), confirm: str = Form(""), csrf: str = Form(""), agree_terms: str = Form(""),
+           agree_privacy: str = Form(""), agree_borrower: str = Form("")):
+    """Create the account with the password the person chose and sign them in. There is no emailed code."""
+    form = {"name": name, "email": email, "org": org, "role": role, "mobile": re.sub(r"[^\d+]", "", mobile or ""), "country": country}
 
     def fail(msg, code=422):
         return render(request, "signup.html", status=code, roles=ROLES, form=form, error=msg)
@@ -252,26 +266,43 @@ def signup(request: Request, name: str = Form(""), email: str = Form(""), org: s
         return fail("Too many sign-ups from this network. Try again later.", 429)
     email = email.strip().lower()
     name, org = name.strip(), org.strip()
-    num = otp.clean_mobile(mobile)
+    phone_error = None
+    try:
+        cc, num = phone.parse_phone(country, mobile)
+    except phone.PhoneError as e:
+        cc = num = None
+        phone_error = str(e)
     if not name:
         return fail("Please enter your name.")
     if not EMAIL_RX.match(email):
         return fail("Please enter a valid email address.")
     if not num:
-        return fail("Enter a valid 10-digit Indian mobile number.")
+        return fail(phone_error)
     if role not in ROLES:
         return fail("Please choose whether you are a lender, agent or DSA.")
+    if password != confirm:
+        return fail("The two passwords do not match.")
+    problem = security.password_problem(password, email, name)
+    if problem:
+        return fail(problem)
     if not (agree_terms and agree_privacy and agree_borrower):
         return fail("To create an account you must accept the Terms of Use, the Privacy Policy and the borrower-consent undertaking.")
     with db() as conn:
-        taken = conn.execute("SELECT 1 FROM users WHERE email=? OR mobile=?", (email, num)).fetchone()
+        taken = conn.execute("SELECT 1 FROM users WHERE email=? OR (country_code=? AND mobile=?)", (email, cc, num)).fetchone()
     if taken:
         return fail("An account with this email or mobile number already exists. Sign in instead.", 409)
     try:
-        oid = otp.issue("signup", email, email, {"name": name, "org": org, "role": role, "mobile": num, "agree_ip": ip_of(request)})
-    except otp.OtpError as e:
-        return fail(e.message, e.status)
-    return _otp_cookie(redirect("/verify"), oid)
+        with tx() as conn:
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified) VALUES (?,?,?,?,?,?,?,1,0)",
+                               (email, security.hash_password(password), name, org or None, role, num, cc))
+            uid = cur.lastrowid
+            record_consents(conn, uid, request)
+    except Exception as e:
+        if "UNIQUE" in str(e):
+            return fail("An account with this email or mobile number already exists. Sign in instead.", 409)
+        raise
+    audit(request, uid, "signup", config.TERMS_VERSION)
+    return set_session(redirect("/wallet" if config.PAYMENT_MODE == "contact_admin" else "/dashboard"), uid)
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -281,9 +312,19 @@ def login_page(request: Request):
     return render(request, "login.html", error=None, form={})
 
 
+_DUMMY_HASH = None
+
+
+def _dummy_hash() -> str:
+    global _DUMMY_HASH
+    if _DUMMY_HASH is None:
+        _DUMMY_HASH = security.hash_password("not-a-real-password-0000")
+    return _DUMMY_HASH
+
+
 @app.post("/login", response_class=HTMLResponse)
-def login(request: Request, email: str = Form(""), csrf: str = Form("")):
-    """Step 1 of sign-in: a code is emailed to the registered address."""
+def login(request: Request, email: str = Form(""), password: str = Form(""), csrf: str = Form("")):
+    """Sign in with email and password. The same error is given for an unknown email and a wrong password."""
     form = {"email": email}
     email = email.strip().lower()
 
@@ -294,112 +335,14 @@ def login(request: Request, email: str = Form(""), csrf: str = Form("")):
         return fail("Your session expired. Please try again.", 400)
     if not EMAIL_RX.match(email):
         return fail("Enter your registered email address.", 422)
-    if not security.login_throttle.allow(f"{ip_of(request)}|{email}"):
-        return fail("Too many attempts. Please wait a few minutes.", 429)
-    with db() as conn:
-        u = conn.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
-    if not u:
-        audit(request, None, "login_failed", email[:60])
-        return fail("No account was found for that email. Create an account first.")
-    try:
-        oid = otp.issue("login", email, email)
-    except otp.OtpError as e:
-        return fail(e.message, e.status)
-    return _otp_cookie(redirect("/verify"), oid)
-
-
-def _verify_ctx(oid: int, error=None):
-    o = otp.get(oid)
-    ctx = {"masked": otp.mask_email(o["mobile"]), "purpose": o["purpose"], "error": error, "resend_seconds": config.OTP_RESEND_SECONDS}
-    if config.OTP_PROVIDER == "dev":
-        ctx["dev_code"] = otp.LAST.get(o["mobile"])
-    return ctx
-
-
-@app.get("/verify", response_class=HTMLResponse)
-def verify_page(request: Request):
-    oid = security.read_otp_token(request.cookies.get("otp_pending"))
-    if not oid or not otp.get(oid):
-        return redirect("/login")
-    return render(request, "verify.html", **_verify_ctx(oid))
-
-
-@app.post("/verify", response_class=HTMLResponse)
-def verify_submit(request: Request, code: str = Form(""), csrf: str = Form("")):
-    oid = security.read_otp_token(request.cookies.get("otp_pending"))
-    if not oid or not otp.get(oid):
-        return redirect("/login")
-    if not security.check_csrf(csrf, "anon"):
-        return render(request, "verify.html", status=400, **_verify_ctx(oid, "Your session expired. Please reload and try again."))
-    try:
-        res = otp.verify(oid, code)
-    except otp.OtpError as e:
-        audit(request, None, "otp_failed", str(oid))
-        return render(request, "verify.html", status=e.status, **_verify_ctx(oid, e.message))
-    if res["purpose"] == "signup":
-        p = res["payload"]
-        try:
-            with tx() as conn:
-                cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, has_password, mobile_verified) VALUES (?,?,?,?,?,?,0,0)",
-                                   (res["email"], security.hash_password(secrets.token_urlsafe(32)), p["name"], p["org"] or None, p["role"], p.get("mobile")))
-                uid = cur.lastrowid
-                record_consents(conn, uid, request)
-        except Exception as e:
-            if "UNIQUE" in str(e):
-                return render(request, "verify.html", status=409, **_verify_ctx(oid, "An account with these details already exists. Please sign in."))
-            raise
-        audit(request, uid, "signup", config.TERMS_VERSION)
-    else:
-        with db() as conn:
-            u = conn.execute("SELECT id FROM users WHERE email=?", (res["email"],)).fetchone()
-        if not u:
-            return redirect("/login")
-        uid = u["id"]
-        audit(request, uid, "login", "otp")
-    resp = set_session(redirect("/dashboard"), uid)
-    resp.delete_cookie("otp_pending")
-    return resp
-
-
-@app.post("/verify/resend", response_class=HTMLResponse)
-def verify_resend(request: Request, csrf: str = Form("")):
-    oid = security.read_otp_token(request.cookies.get("otp_pending"))
-    o = otp.get(oid) if oid else None
-    if not o:
-        return redirect("/login")
-    if not security.check_csrf(csrf, "anon"):
-        return render(request, "verify.html", status=400, **_verify_ctx(oid, "Your session expired. Please reload and try again."))
-    payload = json.loads(o["payload"]) if o["payload"] else None
-    try:
-        new_id = otp.issue(o["purpose"], o["mobile"], o["email"], payload)
-    except otp.OtpError as e:
-        return render(request, "verify.html", status=e.status, **_verify_ctx(oid, e.message))
-    return _otp_cookie(redirect("/verify"), new_id)
-
-
-@app.get("/staff/login", response_class=HTMLResponse)
-def staff_login_page(request: Request):
-    if current_user(request):
-        return redirect("/dashboard")
-    return render(request, "staff_login.html", error=None, email="")
-
-
-@app.post("/staff/login", response_class=HTMLResponse)
-def staff_login(request: Request, email: str = Form(""), password: str = Form(""), csrf: str = Form("")):
-    """Password sign-in for staff and test (master) accounts. Customers use the emailed code."""
-    email = email.strip().lower()
-
-    def fail(msg, code=401):
-        return render(request, "staff_login.html", status=code, error=msg, email=email)
-
-    if not security.check_csrf(csrf, "anon"):
-        return fail("Your session expired. Please try again.", 400)
     key = f"{ip_of(request)}|{email}"
     if not security.login_throttle.allow(key):
         return fail("Too many attempts. Please wait a few minutes.", 429)
     with db() as conn:
-        u = conn.execute("SELECT * FROM users WHERE email=? AND has_password=1", (email,)).fetchone()
-    if not u or not security.verify_password(password, u["password_hash"]):
+        u = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+    usable = bool(u and u["has_password"])
+    ok = security.verify_password(password, u["password_hash"] if usable else _dummy_hash()) and usable      # the same work whether or not the account exists
+    if not ok:
         audit(request, u["id"] if u else None, "login_failed", email[:60])
         return fail("Email or password is incorrect.")
     security.login_throttle.reset(key)
@@ -414,11 +357,17 @@ def staff_login(request: Request, email: str = Form(""), password: str = Form(""
     return set_session(redirect("/dashboard"), u["id"])
 
 
+@app.get("/staff/login")
+def staff_login_old():
+    """Staff and test accounts now sign in on the normal sign-in page."""
+    return redirect("/login")
+
+
 # ----------------------------------------------------------------------------- two-factor sign-in
 @app.get("/mfa", response_class=HTMLResponse)
 def mfa_page(request: Request):
     if not security.read_mfa_token(request.cookies.get("mfa_pending")):
-        return redirect("/staff/login")
+        return redirect("/login")
     return render(request, "mfa.html", error=None)
 
 
@@ -426,7 +375,7 @@ def mfa_page(request: Request):
 def mfa_verify(request: Request, code: str = Form(""), csrf: str = Form("")):
     uid = security.read_mfa_token(request.cookies.get("mfa_pending"))
     if not uid:
-        return redirect("/staff/login")
+        return redirect("/login")
     if not security.check_csrf(csrf, "anon"):
         return render(request, "mfa.html", status=400, error="Your session expired. Please reload and try again.")
     if not security.login_throttle.allow(f"mfa|{uid}"):
@@ -685,17 +634,22 @@ def report_download(request: Request, rid: str):
         return render(request, "error.html", user, status=404, title="File not available",
                       message=f"Excel files are kept for {config.REPORT_RETENTION_DAYS} days. Upload the statement again to regenerate it.")
     audit(request, user["id"], "download_report", rid)
+    try:
+        with tx() as conn:
+            conn.execute("UPDATE reports SET download_count=download_count+1, last_downloaded_at=datetime('now') WHERE id=? AND user_id=?", (rid, user["id"]))
+    except Exception:       # a counter problem must never block the customer's download
+        pass
     ref = re.sub(r"[^A-Za-z0-9_-]+", "_", r["applicant_ref"] or "") or "report"
     return FileResponse(r["xlsx_path"], filename=f"{config.BRAND}_{ref}_{r['id']}.xlsx",
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 # ----------------------------------------------------------------------------- wallet & payments
-def _wallet_page(request: Request, user, error=None, status: int = 200):
+def _wallet_page(request: Request, user, error=None, status: int = 200, notice=None):
     with db() as conn:
         hist = wallet.history(conn, user["id"])
         packs = wallet.packs_for(conn, user["id"], user["price"])
-    return render(request, "wallet.html", user, status=status, history=hist, error=error, packs=packs,
+    return render(request, "wallet.html", user, status=status, history=hist, error=error, notice=notice, packs=packs,
                   reports_possible=user["balance_paise"] // user["price"])
 
 
@@ -751,6 +705,11 @@ def topup(request: Request, pack: str = Form(""), coupon: str = Form(""), csrf: 
     with db() as conn:
         if pk["first_only"] and not wallet.starter_available(conn, user["id"]):
             return fail("The first-report offer is only for your first report and can be used once.")
+    if config.PAYMENT_MODE == "contact_admin":
+        audit(request, user["id"], "plan_requested", pk["id"])
+        with tx() as conn:      # one notification per click, shown on the admin dashboard
+            conn.execute("INSERT INTO admin_notifications(kind, user_id, pack, amount_paise) VALUES ('plan_request',?,?,?)", (user["id"], pk["id"], pk["paise"]))
+        return _wallet_page(request, user, notice=f"You chose {pk['name']} ({fmt_paise(pk['paise'])}). Online payment is not switched on yet, so please contact the admin to pay. Your wallet is credited as soon as the admin confirms your payment.")
     try:
         order = payments.create_order(user["id"], pk["paise"], coupon.strip() or None, pack=pk["id"])
     except payments.PaymentError as e:
@@ -800,7 +759,7 @@ def coupons_create(request: Request, code: str = Form(""), percent: str = Form("
 
 def _users_ctx(error=None, created=None):
     with db() as conn:
-        rows = conn.execute("SELECT id, name, email, mobile, role, org, balance_paise, is_master, privileged, price_paise, created_at FROM users ORDER BY id DESC LIMIT 100").fetchall()
+        rows = conn.execute("SELECT id, name, email, mobile, country_code, role, org, balance_paise, is_master, privileged, price_paise, created_at FROM users ORDER BY id DESC LIMIT 100").fetchall()
     return {"rows": rows, "error": error, "created": created, "roles": ROLES}
 
 
@@ -814,8 +773,8 @@ def admin_users_page(request: Request):
 
 @app.post("/admin/users", response_class=HTMLResponse)
 def admin_users_create(request: Request, name: str = Form(""), email: str = Form(""), mobile: str = Form(""), role: str = Form(""),
-                       org: str = Form(""), credit: str = Form(""), privileged: str = Form(""), rate: str = Form(""), csrf: str = Form("")):
-    """A master account can open an account for a customer. The customer signs in with the mobile code and accepts the Terms on first sign-in."""
+                       org: str = Form(""), country: str = Form("+91"), password: str = Form(""), credit: str = Form(""), privileged: str = Form(""), rate: str = Form(""), csrf: str = Form("")):
+    """A master account can open an account for a customer with a starting password. The customer accepts the Terms on first sign-in."""
     user = _master_only(request)
     if not user:
         return render(request, "error.html", current_user(request), status=404, title="Page not found", message="We could not find that page.")
@@ -826,15 +785,22 @@ def admin_users_create(request: Request, name: str = Form(""), email: str = Form
     if not security.check_csrf(csrf, str(user["id"])):
         return fail("Your session expired. Please reload and try again.", 400)
     email, name, org = email.strip().lower(), name.strip(), org.strip()
-    num = otp.clean_mobile(mobile)
+    try:
+        cc, num = phone.parse_phone(country, mobile)
+    except phone.PhoneError as e:
+        cc = num = None
+        phone_error = str(e)
     if not name:
         return fail("Please enter the customer's name.")
     if not EMAIL_RX.match(email):
         return fail("Please enter a valid email address.")
     if not num:
-        return fail("Enter a valid 10-digit Indian mobile number.")
+        return fail(phone_error)
     if role not in ROLES:
         return fail("Please choose a role.")
+    problem = security.password_problem(password, email, name)
+    if problem:
+        return fail(problem)
     paise = 0
     if credit.strip():
         try:
@@ -854,8 +820,8 @@ def admin_users_create(request: Request, name: str = Form(""), email: str = Form
             return fail(f"The privileged rate must be between Rs 1 and {fmt_paise(config.PRICE_PAISE)}.")
     try:
         with tx() as conn:
-            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, has_password, mobile_verified, privileged, price_paise) VALUES (?,?,?,?,?,?,0,0,?,?)",
-                               (email, security.hash_password(secrets.token_urlsafe(32)), name, org or None, role, num, priv, rate_paise))
+            cur = conn.execute("INSERT INTO users(email, password_hash, name, org, role, mobile, country_code, has_password, mobile_verified, privileged, price_paise) VALUES (?,?,?,?,?,?,?,1,0,?,?)",
+                               (email, security.hash_password(password), name, org or None, role, num, cc, priv, rate_paise))
             uid = cur.lastrowid
     except Exception as e:
         if "UNIQUE" in str(e):
@@ -1066,6 +1032,17 @@ def recover_stuck(max_age_minutes: int = 10) -> int:
     return len(stuck)
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    """Browsers ask for /favicon.ico by habit, whatever the page says."""
+    return FileResponse(APP_DIR / "static" / "favicon-32.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.exception_handler(404)
 async def not_found(request: Request, exc):
     return render(request, "error.html", current_user(request), status=404, title="Page not found", message="That page does not exist.")
+
+
+# ----------------------------------------------------------------------------- admin console (own sign-in at /admin/login)
+from . import admin_console  # noqa: E402  (registers filters; imported last because it uses helpers defined above)
+app.include_router(admin_console.router)

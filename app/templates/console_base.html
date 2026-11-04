@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>{% block title %}Console{% endblock %} | {{ BRAND }} admin</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"><link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png"><link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><meta name="theme-color" content="#1C78FF">
+<link rel="stylesheet" href="/static/admin.css?v={{ ASSET_A }}">
+</head><body>
+<header class="bar"><div class="wrap">
+  <a class="logo" href="/admin"><img src="/static/logo-mark.svg" alt="" width="28" height="28">{{ BRAND }}<small>Admin</small></a>
+  <nav aria-label="Admin">
+    <a href="/admin" class="{{ 'on' if nav == 'dashboard' }}">Analytics</a>
+    <a href="/admin/customers" class="{{ 'on' if nav == 'customers' }}">Customers</a>
+    <a href="/admin/transactions" class="{{ 'on' if nav == 'transactions' }}">Payments</a>
+    <a href="/admin/reports" class="{{ 'on' if nav == 'reports' }}">Reports &amp; downloads</a>
+    <a href="/admin/data" class="{{ 'on' if nav == 'data' }}">All records</a>
+    <a href="/admin/admins" class="{{ 'on' if nav == 'admins' }}">Admins</a>
+  </nav>
+  <span class="who">{{ admin.email }}</span>
+  <form method="post" action="/admin/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small">Sign out</button></form>
+</div></header>
+<main><div class="wrap">
+{% block body %}{% endblock %}
+</div></main>
+{% block scripts %}{% endblock %}
+</body></html>
