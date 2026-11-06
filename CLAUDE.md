@@ -12,7 +12,7 @@ FastAPI + Jinja2 + SQLite (one worker). Docker. Caddy reverse proxy on AWS Light
 - `app/ingest.py`, `banks.py`, `metrics.py`, `categorize.py`, `excel_report.py` the report engine
 - `app/wallet.py`, `payments.py` wallet ledger (hash-chained) and payment modes
 - `app/db.py` schema and migrations (add columns via the migration list); `app/config.py` all settings
-- `app/templates`, `app/static` pages and assets; `tests/` pytest suite; `docs/` notes (DEPLOY.md is for Fly.io; LIGHTSAIL.md and `deploy/lightsail/` are a newer compose-based Lightsail kit)
+- `app/templates`, `app/static` pages and assets; `tests/` pytest suite; `docs/` notes (DEPLOY.md is for Fly.io and LIGHTSAIL.md is the unused compose kit; neither is how we deploy)
 
 ## Run and test
     pip install -r requirements-dev.txt
@@ -20,10 +20,11 @@ FastAPI + Jinja2 + SQLite (one worker). Docker. Caddy reverse proxy on AWS Light
     pytest tests -q          # about 3 minutes; all must pass before pushing
 Demo server env: `DATA_DIR=/tmp/bvdata SECRET_KEY=test APP_ENV=development PAYMENT_MODE=mock`.
 
-## Deploy (the owner runs this on the Lightsail server)
-The live server was set up with the manual command below. A teammate (Arun Mandook) later added a compose kit (`docs/LIGHTSAIL.md`, `deploy/lightsail/update.sh`) that keeps data in a different folder. Before giving deploy commands, confirm with the owner which one is live, and never mix them (that would point the app at a different data folder).
+## Deploy (manual Docker command only)
+The owner deploys ONLY with this manual command, run on the Lightsail server. The repo also contains a compose-based kit (`docs/LIGHTSAIL.md`, `deploy/lightsail/`) added by a teammate; do NOT use it or suggest it, because it keeps data in a different folder and would start the app on an empty database.
+
     cd ~/banksview && git pull && docker build -t banksview . && docker rm -f banksview && docker run -d --name banksview --restart unless-stopped -p 8000:8000 --env-file ~/banksview.env -v ~/banksview-data:/data banksview && docker image prune -f
-After any change, finish by giving the owner this command. Settings live in `~/banksview.env` on the server (it overrides code defaults; check it when a default change seems to have no effect).
+After any change, finish by giving the owner this command, then `docker logs --tail 20 banksview` to check it started. Settings live in `~/banksview.env` on the server (it overrides code defaults; check it when a default change seems to have no effect).
 
 ## Rules that must not break
 - Customer signs up and signs in with email + password (8 to 16 chars). There are no emailed codes. Sign-up has strict validation and bot traps (hidden field, form-timing token).
