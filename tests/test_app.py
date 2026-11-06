@@ -1187,6 +1187,12 @@ def test_no_sql_is_built_by_string_formatting():
     assert not bad, bad
 
 
+def _set_sid(client, value):
+    # replace the session cookie outright; set() alone can leave the server-issued copy in the jar
+    client.cookies.delete("sid")
+    client.cookies.set("sid", value)
+
+
 def test_session_idle_logout_and_revocation(client):
     from app import security
     _signed_in(client)
@@ -1195,13 +1201,13 @@ def test_session_idle_logout_and_revocation(client):
     # untouched for longer than the idle limit -> dead cookie
     import time
     stale = security.make_session(1, 0, now=time.time() - config.SESSION_IDLE_MINUTES * 60 - 5)
-    client.cookies.set("sid", stale)
+    _set_sid(client, stale)
     assert client.get("/dashboard", follow_redirects=False).status_code == 303
     # signing out kills a copied cookie too
-    client.cookies.set("sid", good)
+    _set_sid(client, good)
     out = client.post("/logout", data={"csrf": csrf_from(client.get("/dashboard").text)}, follow_redirects=False)
     assert out.status_code == 303
-    client.cookies.set("sid", good)
+    _set_sid(client, good)
     assert client.get("/dashboard", follow_redirects=False).status_code == 303
 
 
