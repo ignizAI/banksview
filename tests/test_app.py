@@ -233,7 +233,7 @@ def test_at_least_100_data_points_per_column():
     a = metrics.analyze(ingest.ingest(GOOD, None))
     for k in metrics.WIN_KEYS:
         assert k in a["total"] and all(k in m for m in a["monthly"].values()), k
-    assert len(metrics.REGISTRY) >= 200
+    assert len(metrics.REGISTRY) == 208, f"expected exactly 208 metrics (advertised count), found {len(metrics.REGISTRY)}"
     groups = [r[1] for r in metrics.REGISTRY]
     assert all(groups.index(g) + groups.count(g) == len(groups) - groups[::-1].index(g) for g in set(groups)), "groups must be contiguous"
 
